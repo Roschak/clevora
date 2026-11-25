@@ -1,0 +1,70 @@
+﻿@page "/"
+@using Microsoft.AspNetCore.Authorization
+@using Microsoft.AspNetCore.Components.Authorization
+@attribute [Authorize]
+
+<PageTitle>Clevora — Dashboard</PageTitle>
+
+<div class="clevora-hero">
+    <div class="hero-content">
+        <h1 class="hero-title">🟢 Clevora</h1>
+        <p class="hero-subtitle">Platform penyiapan pesan WhatsApp profesional</p>
+        <p class="hero-credit">Dibuat oleh <strong>Gravicode Studios</strong> dipimpin oleh <em>Kang Fadhil</em></p>
+    </div>
+</div>
+
+<div class="dashboard-grid">
+    <a href="/templates" class="card-nav">
+        <div class="card-icon">📋</div>
+        <div class="card-label">Template Pesan</div>
+        <div class="card-desc">Buat &amp; kelola template dengan placeholder dinamis</div>
+    </a>
+    <a href="/composer" class="card-nav">
+        <div class="card-icon">✏️</div>
+        <div class="card-label">Composer</div>
+        <div class="card-desc">Susun pesan, preview, &amp; salin URL WhatsApp</div>
+    </a>
+    <a href="/categories" class="card-nav">
+        <div class="card-icon">🗂️</div>
+        <div class="card-label">Kategori</div>
+        <div class="card-desc">Kelola kategori untuk organisasi template</div>
+    </a>
+    <a href="/favorites" class="card-nav">
+        <div class="card-icon">⭐</div>
+        <div class="card-label">Favorit</div>
+        <div class="card-desc">Template yang sering digunakan</div>
+    </a>
+</div>
+
+<style>
+    .clevora-hero {
+        background: linear-gradient(135deg, #25D366 0%, #128C7E 100%);
+        border-radius: 16px;
+        padding: 2.5rem 2rem;
+        margin-bottom: 2rem;
+        color: white;
+    }
+    .hero-title { font-size: 2.5rem; font-weight: 800; margin: 0; }
+    .hero-subtitle { font-size: 1.2rem; opacity: 0.9; margin: 0.5rem 0; }
+    .hero-credit { font-size: 0.9rem; opacity: 0.75; margin: 0; }
+    .dashboard-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+        gap: 1.25rem;
+    }
+    .card-nav {
+        background: white;
+        border: 1px solid #e5e7eb;
+        border-radius: 12px;
+        padding: 1.5rem;
+        text-decoration: none;
+        color: inherit;
+        transition: box-shadow 0.2s, transform 0.2s;
+        cursor: pointer;
+        display: block;
+    }
+    .card-nav:hover { box-shadow: 0 4px 20px rgba(37,211,102,0.2); transform: translateY(-2px); }
+    .card-icon { font-size: 2rem; margin-bottom: 0.5rem; }
+    .card-label { font-weight: 700; font-size: 1rem; }
+    .card-desc { font-size: 0.85rem; color: #6b7280; margin-top: 0.25rem; }
+</style>

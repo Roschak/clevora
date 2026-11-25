@@ -1,0 +1,16 @@
+﻿@page "/auth"
+@using Microsoft.AspNetCore.Authorization
+@using Microsoft.AspNetCore.Components.Authorization
+@attribute [Authorize]
+
+<PageTitle>Auth — Clevora</PageTitle>
+
+<h1>Anda sudah login</h1>
+
+<CascadingAuthenticationState>
+    <AuthorizeView>
+        <Authorized>
+            Halo, @context.User.Identity?.Name!
+        </Authorized>
+    </AuthorizeView>
+</CascadingAuthenticationState>

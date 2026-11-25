@@ -1,0 +1,139 @@
+## ── .NET / C# ─────────────────────────────────────────────────────────────────
+# Build output
+bin/
+obj/
+out/
+publish/
+
+# NuGet packages
+*.nupkg
+*.snupkg
+*.nuspec
+packages/
+.nuget/
+nuget.config
+
+# User-specific files
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+.vs/
+
+# Visual Studio / Rider
+.idea/
+*.DotSettings.user
+*.rsuser
+
+# MSBuild crash logs
+MSBuild_*.failure.log
+
+# .NET tool manifest (keep if you version-pin tools, comment out if not)
+# .config/dotnet-tools.json
+
+## ── ASP.NET Core ──────────────────────────────────────────────────────────────
+# Self-signed dev cert
+*.pfx
+
+# Published output
+**/publish/
+**/PublishOutput/
+
+# EF Core migrations scaffolded SQL scripts (keep .cs migrations)
+*.Designer.cs.bak
+
+## ── SQLite database files ─────────────────────────────────────────────────────
+*.db
+*.db-shm
+*.db-wal
+*.sqlite
+*.sqlite3
+
+# But track migration snapshots
+!**/Migrations/**
+
+## ── Secrets & configuration ───────────────────────────────────────────────────
+# ASP.NET Core secrets
+**/secrets.json
+**/appsettings.Local.json
+**/appsettings.Production.json
+
+# User secrets store
+%APPDATA%/Microsoft/UserSecrets/
+
+# .env files
+.env
+.env.*
+!.env.example
+
+## ── MAUI / Mobile ─────────────────────────────────────────────────────────────
+# Android
+**/platforms/android/assets/
+**/platforms/android/bin/
+**/platforms/android/obj/
+
+# iOS
+**/platforms/ios/bin/
+**/platforms/ios/obj/
+
+# General MAUI build artefacts
+**/*.apk
+**/*.aab
+**/*.ipa
+**/*.app
+
+## ── Node / Front-end tooling (if used) ───────────────────────────────────────
+node_modules/
+npm-debug.log*
+yarn-error.log
+.pnp
+.pnp.js
+dist/
+.cache/
+
+## ── OS artefacts ──────────────────────────────────────────────────────────────
+# Windows
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# Linux
+*~
+
+## ── Logs & temporary files ────────────────────────────────────────────────────
+logs/
+*.log
+*.tmp
+*.temp
+*.bak
+*.swp
+*.orig
+
+## ── Test results & coverage ───────────────────────────────────────────────────
+TestResults/
+coverage/
+*.coverage
+*.coveragexml
+*.trx
+*.opencover.xml
+
+## ── Azure / deployment artefacts ─────────────────────────────────────────────
+# Local Azure Functions settings
+local.settings.json
+
+# Deployment artefacts
+.azure/
+deploy/
+
+## ── Kiro IDE ──────────────────────────────────────────────────────────────────
+# Keep steering, specs, hooks — they are project config
+# Exclude session cache if any
+.kiro/sessions/
+
+Konfigurasi.txt

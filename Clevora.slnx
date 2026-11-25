@@ -1,0 +1,16 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/Clevora.Application/Clevora.Application.csproj" />
+    <Project Path="src/Clevora.Domain/Clevora.Domain.csproj" />
+    <Project Path="src/Clevora.Infrastructure/Clevora.Infrastructure.csproj" />
+    <Project Path="src/Clevora.Mobile/Clevora.Mobile.csproj" />
+    <Project Path="src/Clevora.Shared/Clevora.Shared.csproj" />
+    <Project Path="src/Clevora.Web/Clevora.Web.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/Clevora.Api.Tests/Clevora.Api.Tests.csproj" />
+    <Project Path="tests/Clevora.Domain.Tests/Clevora.Domain.Tests.csproj" />
+    <Project Path="tests/Clevora.Infrastructure.Tests/Clevora.Infrastructure.Tests.csproj" />
+    <Project Path="tests/Clevora.Mobile.Tests/Clevora.Mobile.Tests.csproj" />
+  </Folder>
+</Solution>

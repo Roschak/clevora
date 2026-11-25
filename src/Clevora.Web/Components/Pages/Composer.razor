@@ -1,0 +1,201 @@
+@page "/composer"
+@using Clevora.Application.Interfaces
+@using Clevora.Domain.Services
+@using Microsoft.AspNetCore.Authorization
+@attribute [Authorize]
+@inject IComposerService ComposerService
+@inject ITemplateService TemplateService
+@inject IAiMessageService AiService
+
+<PageTitle>Composer — Clevora</PageTitle>
+
+<div class="composer-layout">
+    <!-- Panel Kiri: Input -->
+    <div class="panel panel-left">
+        <h2>✏️ Composer</h2>
+
+        <label>Template (opsional)</label>
+        <select @onchange="OnTemplateSelected">
+            <option value="0">— Pilih template —</option>
+            @foreach (var t in templates)
+            {
+                <option value="@t.Id">@t.Title</option>
+            }
+        </select>
+
+        <label>Nomor Penerima (opsional)</label>
+        <input @bind="recipientPhone" placeholder="+628123456789" />
+
+        <label>Pesan</label>
+        <textarea rows="8" @bind="templateBody" @oninput="OnBodyInput"
+                  placeholder="Halo {{name}}, pesanan {{product}} sudah siap!"></textarea>
+
+        @if (placeholders.Any())
+        {
+            <div class="placeholder-section">
+                <strong>Isi Placeholder:</strong>
+                @foreach (var key in placeholders)
+                {
+                    <div class="placeholder-row">
+                        <label>{{@key}}</label>
+                        <input @bind="placeholderValues[key]" @oninput="() => RefreshPreview()" />
+                    </div>
+                }
+            </div>
+        }
+
+        <div class="metrics">
+            <span>📊 @preview?.CharacterCount karakter · @preview?.WordCount kata</span>
+        </div>
+
+        <div class="ai-actions">
+            <button class="btn-ai" @onclick="() => RunAi(AiOperation.Fix)">🔧 Perbaiki</button>
+            <button class="btn-ai" @onclick="() => RunAi(AiOperation.Rewrite)">🔄 Tulis Ulang</button>
+            <button class="btn-ai btn-compose" @onclick="() => RunAi(AiOperation.Compose)">✨ Compose AI</button>
+        </div>
+
+        @if (aiLoading) { <p class="ai-status">⏳ AI sedang bekerja…</p> }
+        @if (!string.IsNullOrEmpty(aiError)) { <p class="ai-error">@aiError</p> }
+    </div>
+
+    <!-- Panel Kanan: Preview -->
+    <div class="panel panel-right">
+        <h2>📱 Preview WhatsApp</h2>
+        <div class="wa-preview">
+            <div class="wa-bubble">
+                @if (preview is not null)
+                {
+                    @((MarkupString)preview.HtmlPreview)
+                }
+                else
+                {
+                    <span class="placeholder-text">Preview akan muncul di sini…</span>
+                }
+            </div>
+        </div>
+
+        @if (!string.IsNullOrEmpty(preview?.ClickToChatUrl))
+        {
+            <div class="cta-url">
+                <strong>🔗 Click-to-Chat URL:</strong><br />
+                <a href="@preview.ClickToChatUrl" target="_blank">@preview.ClickToChatUrl</a>
+                <button class="btn-copy" @onclick="CopyUrl">📋 Salin</button>
+            </div>
+        }
+
+        @if (preview?.MissingPlaceholders.Count > 0)
+        {
+            <div class="missing-warn">
+                ⚠️ Placeholder belum diisi: @string.Join(", ", preview.MissingPlaceholders.Select(p => $"{{{{{p}}}}}"))
+            </div>
+        }
+    </div>
+</div>
+
+<style>
+    .composer-layout { display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem; }
+    @@media (max-width: 768px) { .composer-layout { grid-template-columns: 1fr; } }
+    .panel { background: white; border: 1px solid #e5e7eb; border-radius: 12px; padding: 1.5rem; }
+    .panel h2 { margin-top: 0; }
+    .panel label { display: block; font-weight: 600; margin: 0.75rem 0 0.25rem; font-size: 0.9rem; }
+    .panel input, .panel select, .panel textarea { width: 100%; padding: 0.5rem; border: 1px solid #d1d5db; border-radius: 8px; font-size: 0.95rem; }
+    .placeholder-section { background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 8px; padding: 0.75rem; margin-top: 0.75rem; }
+    .placeholder-row { display: flex; gap: 0.5rem; align-items: center; margin-top: 0.4rem; }
+    .placeholder-row label { min-width: 120px; font-family: monospace; font-size: 0.85rem; color: #166534; }
+    .metrics { font-size: 0.85rem; color: #6b7280; margin-top: 0.75rem; }
+    .ai-actions { display: flex; gap: 0.5rem; margin-top: 1rem; flex-wrap: wrap; }
+    .btn-ai { background: #f3f4f6; border: 1px solid #d1d5db; border-radius: 8px; padding: 0.4rem 0.9rem; cursor: pointer; font-size: 0.9rem; }
+    .btn-compose { background: #25D366; color: white; border-color: #25D366; font-weight: 600; }
+    .ai-status, .ai-error { font-size: 0.85rem; color: #6b7280; }
+    .ai-error { color: #ef4444; }
+    .wa-preview { background: #e5ddd5; border-radius: 12px; padding: 1.5rem; min-height: 200px; }
+    .wa-bubble { background: white; border-radius: 0 12px 12px 12px; padding: 0.75rem 1rem; max-width: 85%; display: inline-block; white-space: pre-wrap; font-size: 0.95rem; box-shadow: 0 1px 2px rgba(0,0,0,0.1); }
+    .placeholder-text { color: #aaa; font-style: italic; }
+    .cta-url { margin-top: 1rem; background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 8px; padding: 0.75rem; word-break: break-all; font-size: 0.85rem; }
+    .btn-copy { background: none; border: none; cursor: pointer; color: #25D366; font-weight: 600; }
+    .missing-warn { margin-top: 0.75rem; background: #fefce8; border: 1px solid #fde68a; border-radius: 8px; padding: 0.75rem; font-size: 0.85rem; color: #92400e; }
+</style>
+
+@code {
+    [SupplyParameterFromQuery(Name = "tid")]
+    public int? TemplateId { get; set; }
+
+    private List<Clevora.Domain.Entities.MessageTemplate> templates = [];
+    private string templateBody = string.Empty;
+    private string recipientPhone = string.Empty;
+    private IReadOnlyList<string> placeholders = [];
+    private Dictionary<string, string> placeholderValues = new();
+    private ComposerPreviewResult? preview;
+    private bool aiLoading;
+    private string aiError = string.Empty;
+
+    protected override async Task OnInitializedAsync()
+    {
+        templates = (await TemplateService.GetAllAsync()).ToList();
+        if (TemplateId.HasValue && TemplateId > 0)
+        {
+            var t = await TemplateService.GetByIdAsync(TemplateId.Value);
+            if (t is not null) LoadTemplate(t);
+        }
+    }
+
+    private void LoadTemplate(Clevora.Domain.Entities.MessageTemplate t)
+    {
+        templateBody = t.Body;
+        RefreshPlaceholders();
+        RefreshPreview();
+    }
+
+    private async Task OnTemplateSelected(ChangeEventArgs e)
+    {
+        if (int.TryParse(e.Value?.ToString(), out var id) && id > 0)
+        {
+            var t = await TemplateService.GetByIdAsync(id);
+            if (t is not null) LoadTemplate(t);
+        }
+    }
+
+    private void OnBodyInput(ChangeEventArgs e)
+    {
+        templateBody = e.Value?.ToString() ?? string.Empty;
+        RefreshPlaceholders();
+        RefreshPreview();
+    }
+
+    private void RefreshPlaceholders()
+    {
+        placeholders = PlaceholderParser.ExtractNames(templateBody);
+        foreach (var key in placeholders)
+            if (!placeholderValues.ContainsKey(key))
+                placeholderValues[key] = string.Empty;
+    }
+
+    private void RefreshPreview()
+    {
+        try
+        {
+            preview = ComposerService.Preview(templateBody, placeholderValues, recipientPhone);
+        }
+        catch { /* ignore preview errors */ }
+    }
+
+    private async Task RunAi(AiOperation op)
+    {
+        if (string.IsNullOrWhiteSpace(templateBody)) return;
+        aiLoading = true; aiError = string.Empty;
+        try
+        {
+            templateBody = await AiService.ProcessAsync(op, templateBody);
+            RefreshPlaceholders();
+            RefreshPreview();
+        }
+        catch (Exception ex) { aiError = $"AI error: {ex.Message}"; }
+        finally { aiLoading = false; }
+    }
+
+    private async Task CopyUrl()
+    {
+        // JS interop not needed — link is clickable. Future: navigator.clipboard
+        await Task.CompletedTask;
+    }
+}

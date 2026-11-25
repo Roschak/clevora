@@ -1,0 +1,33 @@
+Name: Clevora
+
+Deskripsi: Social Media gabungan twitter dan threads
+
+Features
+---
+Desain dan Fitur bisa lihat di file @solution-design.md
+
+---
+Notes:
+- dan juga saya mau ada auth nya login, logout, register dan juga 
+- Dibangun dengan .NET 10 (Blazor untuk Web (sediakan juga rest api dengan Min Api + swagger + auth via api-key), Maui Blazor untuk Mobile App, SQLite untuk database di folder /home/data/app.db)
+- Untuk bikin gambar/2d art bisa gunakan rodin mcp fungsi gpt image flare
+- Template aplikasi bisa gunakan dari folder 'template'
+- Buat UI UX design yang keren dibantu skill frontend-design 
+- Optimasi kode dengan best practice, best performance dan efisiensi memory
+- Dokumentasi yang lengkap, jelas, mudah dengan dua Bahasa (English dan Bahasa Indonesia)
+- Tambahkan screenshot-nya ke readme dan docs
+- Tambahkan info pada dokumentasi dan aplikasi: Dibuat oleh Gravicode Studios dipimpin oleh Kang Fadhil
+- PLAN.md untuk roadmap pengembangan, dan Progress.md untuk tracking development
+- ujicoba dengan LLM real, azure blob, azure cognitive service bisa dengan api key di 'C:\Users\mifma\Documents\CodeSandbox\konfigurasi.txt' 
+---
+Supporting Library (jika diperlukan):
+Reinforcement Learning -> https://github.com/DotNetVibeCoderz/Vibe_Library/tree/main/RLNet
+Visulization Library -> https://github.com/DotNetVibeCoderz/Vibe_Charting/tree/main/Visual.Net
+multiplatform 3D graphics engine -> https://github.com/DotNetVibeCoderz/Vibe_Graphics/tree/main/ThreeNet
+Numpy, Pandas, Scikit Learn, Scipy -> https://github.com/DotNetVibeCoderz/Vibe_ML/tree/main/GravicodeScience
+Hugging Face support -> https://github.com/DotNetVibeCoderz/Vibe_ML/tree/main/HF.Net
+Google Media Pipe -> https://github.com/DotNetVibeCoderz/Vibe_ML/tree/main/MediaPipeNet
+Gdal -> https://github.com/DotNetVibeCoderz/Vibe_Components/tree/main/GDAL.Net
+IoT Support -> https://github.com/DotNetVibeCoderz/Vibe_IoT/tree/main/IoTComNet 
+dan library lain yang mungkin diperlukan seperti TorchSharp, OpenCVSharp, ML.Net, dsb.
+---

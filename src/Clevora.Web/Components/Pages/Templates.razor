@@ -1,0 +1,171 @@
+@page "/templates"
+@using Clevora.Application.Interfaces
+@using Clevora.Domain.Entities
+@using Microsoft.AspNetCore.Authorization
+@attribute [Authorize]
+@inject ITemplateService TemplateService
+@inject ICategoryService CategoryService
+@inject NavigationManager Nav
+
+<PageTitle>Template — Clevora</PageTitle>
+
+<div class="page-header">
+    <h2>📋 Template Pesan</h2>
+    <button class="btn-primary" @onclick="() => ShowForm(null)">+ Buat Template</button>
+</div>
+
+<div class="search-bar">
+    <input placeholder="Cari template..." @bind="searchQuery" @oninput="OnSearch" />
+</div>
+
+@if (templates is null)
+{
+    <p>Memuat…</p>
+}
+else if (!templates.Any())
+{
+    <div class="empty-state">Belum ada template. Klik <strong>+ Buat Template</strong> untuk mulai.</div>
+}
+else
+{
+    <div class="template-grid">
+        @foreach (var t in templates)
+        {
+            <div class="template-card @(t.IsFavorite ? "favorited" : "")">
+                <div class="tc-header">
+                    <span class="tc-title">@t.Title</span>
+                    <span class="tc-category">@(t.Category?.Name ?? "—")</span>
+                </div>
+                <div class="tc-body">@t.Body.Substring(0, Math.Min(t.Body.Length, 120))@(t.Body.Length > 120 ? "…" : "")</div>
+                <div class="tc-actions">
+                    <button class="btn-icon" title="Gunakan di Composer" @onclick="() => Nav.NavigateTo($\"/composer?tid={t.Id}\")">✏️</button>
+                    <button class="btn-icon" title="Favorit" @onclick="() => ToggleFav(t)">@(t.IsFavorite ? "⭐" : "☆")</button>
+                    <button class="btn-icon" title="Edit" @onclick="() => ShowForm(t)">🖊️</button>
+                    <button class="btn-icon" title="Arsip" @onclick="() => Archive(t)">🗄️</button>
+                </div>
+            </div>
+        }
+    </div>
+}
+
+@if (formVisible)
+{
+    <div class="modal-backdrop" @onclick="HideForm">
+        <div class="modal" @onclick:stopPropagation>
+            <h3>@(editTemplate?.Id > 0 ? "Edit" : "Buat") Template</h3>
+            <label>Judul</label>
+            <input @bind="formTitle" placeholder="Judul template" />
+            <label>Kategori</label>
+            <select @bind="formCategoryId">
+                <option value="0">— Pilih Kategori —</option>
+                @foreach (var c in categories)
+                {
+                    <option value="@c.Id">@c.Name</option>
+                }
+            </select>
+            <label>Isi Template <small>(gunakan &#123;&#123;variable&#125;&#125; untuk placeholder)</small></label>
+            <textarea rows="6" @bind="formBody" placeholder="Halo {{name}}, pesanan {{product}} sudah siap." />
+            <div class="modal-actions">
+                <button class="btn-secondary" @onclick="HideForm">Batal</button>
+                <button class="btn-primary" @onclick="SaveTemplate">Simpan</button>
+            </div>
+            @if (!string.IsNullOrEmpty(formError))
+            {
+                <p class="form-error">@formError</p>
+            }
+        </div>
+    </div>
+}
+
+<style>
+    .page-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; }
+    .search-bar input { width: 100%; padding: 0.6rem 1rem; border: 1px solid #d1d5db; border-radius: 8px; font-size: 1rem; }
+    .template-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 1rem; margin-top: 1rem; }
+    .template-card { background: white; border: 1px solid #e5e7eb; border-radius: 12px; padding: 1rem; }
+    .template-card.favorited { border-color: #f59e0b; }
+    .tc-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.4rem; }
+    .tc-title { font-weight: 700; }
+    .tc-category { font-size: 0.75rem; background: #dcfce7; color: #166534; padding: 2px 8px; border-radius: 999px; }
+    .tc-body { font-size: 0.85rem; color: #6b7280; white-space: pre-wrap; margin-bottom: 0.75rem; }
+    .tc-actions { display: flex; gap: 0.5rem; }
+    .btn-icon { background: none; border: none; cursor: pointer; font-size: 1.1rem; }
+    .btn-primary { background: #25D366; color: white; border: none; padding: 0.5rem 1.25rem; border-radius: 8px; cursor: pointer; font-weight: 600; }
+    .btn-secondary { background: #f3f4f6; border: none; padding: 0.5rem 1.25rem; border-radius: 8px; cursor: pointer; }
+    .empty-state { text-align: center; color: #9ca3af; padding: 3rem; }
+    .modal-backdrop { position: fixed; inset: 0; background: rgba(0,0,0,0.4); display: flex; align-items: center; justify-content: center; z-index: 999; }
+    .modal { background: white; border-radius: 16px; padding: 2rem; min-width: 420px; max-width: 560px; width: 100%; }
+    .modal label { display: block; font-weight: 600; margin: 0.75rem 0 0.25rem; }
+    .modal input, .modal select, .modal textarea { width: 100%; padding: 0.5rem; border: 1px solid #d1d5db; border-radius: 8px; font-size: 0.95rem; }
+    .modal-actions { display: flex; justify-content: flex-end; gap: 0.75rem; margin-top: 1.25rem; }
+    .form-error { color: #ef4444; margin-top: 0.5rem; }
+</style>
+
+@code {
+    private IReadOnlyList<MessageTemplate>? templates;
+    private List<TemplateCategory> categories = [];
+    private string searchQuery = string.Empty;
+    private bool formVisible;
+    private MessageTemplate? editTemplate;
+    private string formTitle = string.Empty;
+    private string formBody = string.Empty;
+    private int formCategoryId;
+    private string formError = string.Empty;
+
+    protected override async Task OnInitializedAsync()
+    {
+        categories = (await CategoryService.GetAllAsync()).ToList();
+        await LoadTemplates();
+    }
+
+    private async Task LoadTemplates()
+    {
+        templates = string.IsNullOrWhiteSpace(searchQuery)
+            ? await TemplateService.GetAllAsync()
+            : await TemplateService.SearchAsync(searchQuery);
+    }
+
+    private async Task OnSearch(ChangeEventArgs e)
+    {
+        searchQuery = e.Value?.ToString() ?? string.Empty;
+        await LoadTemplates();
+    }
+
+    private void ShowForm(MessageTemplate? t)
+    {
+        editTemplate = t;
+        formTitle = t?.Title ?? string.Empty;
+        formBody = t?.Body ?? string.Empty;
+        formCategoryId = t?.CategoryId ?? 0;
+        formError = string.Empty;
+        formVisible = true;
+    }
+
+    private void HideForm() => formVisible = false;
+
+    private async Task SaveTemplate()
+    {
+        if (string.IsNullOrWhiteSpace(formTitle)) { formError = "Judul wajib diisi."; return; }
+        if (formCategoryId == 0) { formError = "Pilih kategori."; return; }
+        if (string.IsNullOrWhiteSpace(formBody)) { formError = "Isi template wajib diisi."; return; }
+
+        if (editTemplate?.Id > 0)
+            await TemplateService.UpdateAsync(editTemplate.Id, formTitle, formBody, formCategoryId);
+        else
+            await TemplateService.CreateAsync(formTitle, formBody, formCategoryId);
+
+        HideForm();
+        await LoadTemplates();
+    }
+
+    private async Task ToggleFav(MessageTemplate t)
+    {
+        await TemplateService.ToggleFavoriteAsync(t.Id);
+        await LoadTemplates();
+    }
+
+    private async Task Archive(MessageTemplate t)
+    {
+        await TemplateService.ArchiveAsync(t.Id);
+        await LoadTemplates();
+    }
+}
