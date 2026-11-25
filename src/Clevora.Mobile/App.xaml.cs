@@ -1,14 +1,14 @@
 ﻿namespace Clevora.Mobile;
 
-public partial class App : Application
+public partial class App : Microsoft.Maui.Controls.Application
 {
-	public App()
-	{
-		InitializeComponent();
-	}
+    public App()
+    {
+        InitializeComponent();
+    }
 
-	protected override Window CreateWindow(IActivationState? activationState)
-	{
-		return new Window(new MainPage()) { Title = "Clevora.Mobile" };
-	}
+    protected override Microsoft.Maui.Controls.Window CreateWindow(Microsoft.Maui.IActivationState? activationState)
+    {
+        return new Microsoft.Maui.Controls.Window(new MainPage()) { Title = "Clevora" };
+    }
 }

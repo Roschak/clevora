@@ -33,7 +33,7 @@ public class MobileSyncOrchestrator(
                 var pushItems = pending.Select(p => new SyncPushItem(
                     p.EntityType,
                     p.EntityId,
-                    p.Operation,
+                    (SyncOperation)p.Operation,
                     p.BaseVersion,
                     p.CreatedAtUtc,
                     p.PayloadJson)).ToList();

@@ -137,3 +137,9 @@ deploy/
 .kiro/sessions/
 
 Konfigurasi.txt
+
+keystore/
+Directory.Build.props.local
+
+**/bin/Release/**
+**/bin/Debug/**

@@ -1,207 +1,323 @@
 using System.Text.Json;
 using Clevora.Domain.Entities;
+using Clevora.Domain.Services;
 using Clevora.Shared.Models;
+using SQLite;
 
 namespace Clevora.Mobile.Services;
 
-public record SyncOutboxRecord(
-    Guid Id,
-    string EntityType,
-    int EntityId,
-    SyncOperation Operation,
-    long BaseVersion,
-    DateTime CreatedAtUtc,
-    string PayloadJson);
+// ── Outbox record for SQLite ──────────────────────────────────────────────────
+[Table("SyncOutbox")]
+public class SyncOutboxRecord
+{
+    [PrimaryKey] public string Id { get; set; } = Guid.NewGuid().ToString();
+    public string EntityType { get; set; } = string.Empty;
+    public int EntityId { get; set; }
+    public int Operation { get; set; } // SyncOperation enum value
+    public long BaseVersion { get; set; }
+    public DateTime CreatedAtUtc { get; set; } = DateTime.UtcNow;
+    public string PayloadJson { get; set; } = "{}";
+}
 
+// ── SQLite-mapped entity classes ──────────────────────────────────────────────
+[Table("Categories")]
+public class LocalCategory
+{
+    [PrimaryKey, AutoIncrement] public int Id { get; set; }
+    public string Name { get; set; } = string.Empty;
+    public string? Description { get; set; }
+    public string? Icon { get; set; }
+    public bool IsArchived { get; set; }
+    public bool IsDeleted { get; set; }
+    public long Version { get; set; } = 1;
+    public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+    public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
+}
+
+[Table("Templates")]
+public class LocalTemplate
+{
+    [PrimaryKey, AutoIncrement] public int Id { get; set; }
+    public string Title { get; set; } = string.Empty;
+    public string Body { get; set; } = string.Empty;
+    public int CategoryId { get; set; }
+    public bool IsFavorite { get; set; }
+    public bool IsArchived { get; set; }
+    public bool IsDeleted { get; set; }
+    public string? Tags { get; set; }
+    public long Version { get; set; } = 1;
+    public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+    public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
+}
+
+[Table("AppState")]
+public class AppStateRecord
+{
+    [PrimaryKey] public string Key { get; set; } = string.Empty;
+    public string Value { get; set; } = string.Empty;
+}
+
+// ── Main service ──────────────────────────────────────────────────────────────
 public class LocalDatabaseService
 {
-    private readonly List<TemplateCategory> _categories = [];
-    private readonly List<MessageTemplate> _templates = [];
-    private readonly List<MessageDraft> _drafts = [];
-    private readonly List<SyncOutboxRecord> _outbox = [];
-    private long _latestServerVersion = 0;
+    private readonly SQLiteConnection _db;
+    private const string LatestVersionKey = "LatestServerVersion";
 
     public LocalDatabaseService()
     {
-        // Seed default starter templates if empty
-        SeedStarterData();
+        var dbPath = Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+            "Clevora",
+            "clevora_local.db");
+
+        Directory.CreateDirectory(Path.GetDirectoryName(dbPath)!);
+
+        _db = new SQLiteConnection(dbPath, SQLiteOpenFlags.ReadWrite | SQLiteOpenFlags.Create | SQLiteOpenFlags.SharedCache);
+        _db.CreateTable<LocalCategory>();
+        _db.CreateTable<LocalTemplate>();
+        _db.CreateTable<SyncOutboxRecord>();
+        _db.CreateTable<AppStateRecord>();
+
+        SeedIfEmpty();
     }
 
-    public long LatestServerVersion => _latestServerVersion;
-    public void SetLatestServerVersion(long version) => _latestServerVersion = version;
+    // ── Server version tracking ───────────────────────────────────────────────
+    public long LatestServerVersion
+    {
+        get
+        {
+            var rec = _db.Find<AppStateRecord>(LatestVersionKey);
+            return rec is not null && long.TryParse(rec.Value, out var v) ? v : 0;
+        }
+    }
 
-    public IReadOnlyList<TemplateCategory> GetCategories() =>
-        _categories.Where(c => !c.IsDeleted && !c.IsArchived).OrderBy(c => c.Name).ToList();
+    public void SetLatestServerVersion(long version)
+    {
+        _db.InsertOrReplace(new AppStateRecord { Key = LatestVersionKey, Value = version.ToString() });
+    }
 
-    public IReadOnlyList<MessageTemplate> GetTemplates(int? categoryId = null) =>
-        _templates.Where(t => !t.IsDeleted && !t.IsArchived && (!categoryId.HasValue || t.CategoryId == categoryId.Value))
-                  .OrderByDescending(t => t.IsFavorite)
-                  .ThenByDescending(t => t.UpdatedAt)
-                  .ToList();
+    // ── Categories ────────────────────────────────────────────────────────────
+    public IReadOnlyList<LocalCategory> GetCategories() =>
+        _db.Table<LocalCategory>()
+           .Where(c => !c.IsDeleted && !c.IsArchived)
+           .OrderBy(c => c.Name)
+           .ToList();
 
-    public MessageTemplate? GetTemplate(int id) =>
-        _templates.FirstOrDefault(t => t.Id == id && !t.IsDeleted);
+    public LocalCategory? GetCategory(int id) =>
+        _db.Find<LocalCategory>(id);
 
-    public MessageTemplate SaveTemplate(string title, string body, int categoryId, string? tags, int? id = null)
+    public LocalCategory SaveCategory(string name, string? description, string? icon, int? id = null)
     {
         if (id.HasValue && id > 0)
         {
-            var existing = _templates.FirstOrDefault(t => t.Id == id.Value)
+            var existing = _db.Find<LocalCategory>(id.Value)
+                ?? throw new KeyNotFoundException("Category not found");
+            existing.Name = name;
+            existing.Description = description;
+            existing.Icon = icon;
+            existing.UpdatedAt = DateTime.UtcNow;
+            _db.Update(existing);
+            AddOutbox("category", existing.Id, SyncOperation.Update, existing.Version,
+                JsonSerializer.Serialize(new UpdateCategoryRequest(name, description, icon, existing.Version)));
+            return existing;
+        }
+
+        var cat = new LocalCategory { Name = name, Description = description, Icon = icon };
+        _db.Insert(cat);
+        AddOutbox("category", cat.Id, SyncOperation.Create, 0,
+            JsonSerializer.Serialize(new CreateCategoryRequest(name, description, icon)));
+        return cat;
+    }
+
+    public void DeleteCategory(int id)
+    {
+        var cat = _db.Find<LocalCategory>(id);
+        if (cat is null) return;
+        cat.IsDeleted = true;
+        _db.Update(cat);
+        AddOutbox("category", id, SyncOperation.Delete, cat.Version, "{}");
+    }
+
+    // ── Templates ─────────────────────────────────────────────────────────────
+    public IReadOnlyList<LocalTemplate> GetTemplates(int? categoryId = null)
+    {
+        var query = _db.Table<LocalTemplate>().Where(t => !t.IsDeleted && !t.IsArchived);
+        if (categoryId.HasValue)
+            query = query.Where(t => t.CategoryId == categoryId.Value);
+        return query.OrderByDescending(t => t.IsFavorite).ThenByDescending(t => t.UpdatedAt).ToList();
+    }
+
+    public LocalTemplate? GetTemplate(int id) =>
+        _db.Table<LocalTemplate>().FirstOrDefault(t => t.Id == id && !t.IsDeleted);
+
+    public LocalTemplate SaveTemplate(string title, string body, int categoryId, string? tags, int? id = null)
+    {
+        if (id.HasValue && id > 0)
+        {
+            var existing = _db.Find<LocalTemplate>(id.Value)
                 ?? throw new KeyNotFoundException("Template not found");
             existing.Title = title;
             existing.Body = body;
             existing.CategoryId = categoryId;
             existing.Tags = tags;
             existing.UpdatedAt = DateTime.UtcNow;
-
-            _outbox.Add(new SyncOutboxRecord(
-                Guid.NewGuid(), "template", existing.Id, SyncOperation.Update,
-                existing.Version, DateTime.UtcNow,
-                JsonSerializer.Serialize(new UpdateTemplateRequest(title, body, categoryId, tags, existing.Version))));
-
+            _db.Update(existing);
+            AddOutbox("template", existing.Id, SyncOperation.Update, existing.Version,
+                JsonSerializer.Serialize(new UpdateTemplateRequest(title, body, categoryId, tags, existing.Version)));
             return existing;
         }
 
-        var newId = _templates.Any() ? _templates.Max(t => t.Id) + 1 : 1;
-        var newT = new MessageTemplate
-        {
-            Id = newId,
-            Title = title,
-            Body = body,
-            CategoryId = categoryId,
-            Tags = tags,
-            Version = 1,
-            CreatedAt = DateTime.UtcNow,
-            UpdatedAt = DateTime.UtcNow
-        };
-        _templates.Add(newT);
-
-        _outbox.Add(new SyncOutboxRecord(
-            Guid.NewGuid(), "template", newId, SyncOperation.Create,
-            0, DateTime.UtcNow,
-            JsonSerializer.Serialize(new CreateTemplateRequest(title, body, categoryId, tags))));
-
-        return newT;
+        var t = new LocalTemplate { Title = title, Body = body, CategoryId = categoryId, Tags = tags };
+        _db.Insert(t);
+        AddOutbox("template", t.Id, SyncOperation.Create, 0,
+            JsonSerializer.Serialize(new CreateTemplateRequest(title, body, categoryId, tags)));
+        return t;
     }
 
     public void DeleteTemplate(int id)
     {
-        var existing = _templates.FirstOrDefault(t => t.Id == id);
-        if (existing is not null)
-        {
-            existing.IsDeleted = true;
-            _outbox.Add(new SyncOutboxRecord(
-                Guid.NewGuid(), "template", id, SyncOperation.Delete,
-                existing.Version, DateTime.UtcNow, "{}"));
-        }
+        var t = _db.Find<LocalTemplate>(id);
+        if (t is null) return;
+        t.IsDeleted = true;
+        _db.Update(t);
+        AddOutbox("template", id, SyncOperation.Delete, t.Version, "{}");
     }
 
     public void ToggleFavorite(int id)
     {
-        var existing = _templates.FirstOrDefault(t => t.Id == id);
-        if (existing is not null)
-        {
-            existing.IsFavorite = !existing.IsFavorite;
-            existing.UpdatedAt = DateTime.UtcNow;
-            _outbox.Add(new SyncOutboxRecord(
-                Guid.NewGuid(), "template", id, SyncOperation.Update,
-                existing.Version, DateTime.UtcNow,
-                JsonSerializer.Serialize(new UpdateTemplateRequest(existing.Title, existing.Body, existing.CategoryId, existing.Tags, existing.Version))));
-        }
+        var t = _db.Find<LocalTemplate>(id);
+        if (t is null) return;
+        t.IsFavorite = !t.IsFavorite;
+        t.UpdatedAt = DateTime.UtcNow;
+        _db.Update(t);
+        AddOutbox("template", id, SyncOperation.Update, t.Version,
+            JsonSerializer.Serialize(new UpdateTemplateRequest(t.Title, t.Body, t.CategoryId, t.Tags, t.Version)));
     }
 
-    public IReadOnlyList<SyncOutboxRecord> GetPendingOutbox() => _outbox.ToList();
+    // ── Outbox ────────────────────────────────────────────────────────────────
+    public IReadOnlyList<SyncOutboxRecord> GetPendingOutbox() =>
+        _db.Table<SyncOutboxRecord>().OrderBy(o => o.CreatedAtUtc).ToList();
 
-    public void ClearOutbox(IEnumerable<Guid> ids)
+    public void ClearOutbox(IEnumerable<string> ids)
     {
-        var idSet = ids.ToHashSet();
-        _outbox.RemoveAll(o => idSet.Contains(o.Id));
+        var idList = ids.ToList();
+        foreach (var id in idList)
+            _db.Delete<SyncOutboxRecord>(id);
     }
 
+    // ── Apply pull from server ────────────────────────────────────────────────
     public void ApplyRemotePull(SyncPullResponse pull)
     {
-        _latestServerVersion = Math.Max(_latestServerVersion, pull.LatestServerVersion);
+        SetLatestServerVersion(Math.Max(LatestServerVersion, pull.LatestServerVersion));
 
-        // Delete Categories
-        var delCatSet = pull.DeletedCategoryIds.ToHashSet();
-        _categories.RemoveAll(c => delCatSet.Contains(c.Id));
-
-        // Upsert Categories
-        foreach (var c in pull.Categories)
+        // Soft-delete removed categories
+        foreach (var cid in pull.DeletedCategoryIds)
         {
-            var match = _categories.FirstOrDefault(x => x.Id == c.Id);
-            if (match is not null)
+            var c = _db.Find<LocalCategory>(cid);
+            if (c is null) continue;
+            c.IsDeleted = true;
+            _db.Update(c);
+        }
+
+        // Upsert categories
+        foreach (var dto in pull.Categories)
+        {
+            var existing = _db.Find<LocalCategory>(dto.Id);
+            if (existing is not null)
             {
-                match.Name = c.Name;
-                match.Description = c.Description;
-                match.Icon = c.Icon;
-                match.IsArchived = c.IsArchived;
-                match.Version = c.Version;
-                match.UpdatedAt = c.UpdatedAt;
+                existing.Name = dto.Name;
+                existing.Description = dto.Description;
+                existing.Icon = dto.Icon;
+                existing.IsArchived = dto.IsArchived;
+                existing.Version = dto.Version;
+                existing.UpdatedAt = dto.UpdatedAt;
+                _db.Update(existing);
             }
             else
             {
-                _categories.Add(new TemplateCategory
+                _db.InsertOrReplace(new LocalCategory
                 {
-                    Id = c.Id,
-                    Name = c.Name,
-                    Description = c.Description,
-                    Icon = c.Icon,
-                    IsArchived = c.IsArchived,
-                    Version = c.Version,
-                    CreatedAt = c.CreatedAt,
-                    UpdatedAt = c.UpdatedAt
+                    Id = dto.Id,
+                    Name = dto.Name,
+                    Description = dto.Description,
+                    Icon = dto.Icon,
+                    IsArchived = dto.IsArchived,
+                    Version = dto.Version,
+                    CreatedAt = dto.CreatedAt,
+                    UpdatedAt = dto.UpdatedAt
                 });
             }
         }
 
-        // Delete Templates
-        var delTmplSet = pull.DeletedTemplateIds.ToHashSet();
-        _templates.RemoveAll(t => delTmplSet.Contains(t.Id));
-
-        // Upsert Templates
-        foreach (var t in pull.Templates)
+        // Soft-delete removed templates
+        foreach (var tid in pull.DeletedTemplateIds)
         {
-            var match = _templates.FirstOrDefault(x => x.Id == t.Id);
-            if (match is not null)
+            var t = _db.Find<LocalTemplate>(tid);
+            if (t is null) continue;
+            t.IsDeleted = true;
+            _db.Update(t);
+        }
+
+        // Upsert templates
+        foreach (var dto in pull.Templates)
+        {
+            var existing = _db.Find<LocalTemplate>(dto.Id);
+            if (existing is not null)
             {
-                match.Title = t.Title;
-                match.Body = t.Body;
-                match.CategoryId = t.CategoryId;
-                match.IsFavorite = t.IsFavorite;
-                match.IsArchived = t.IsArchived;
-                match.Tags = t.Tags;
-                match.Version = t.Version;
-                match.UpdatedAt = t.UpdatedAt;
+                existing.Title = dto.Title;
+                existing.Body = dto.Body;
+                existing.CategoryId = dto.CategoryId;
+                existing.IsFavorite = dto.IsFavorite;
+                existing.IsArchived = dto.IsArchived;
+                existing.Tags = dto.Tags;
+                existing.Version = dto.Version;
+                existing.UpdatedAt = dto.UpdatedAt;
+                _db.Update(existing);
             }
             else
             {
-                _templates.Add(new MessageTemplate
+                _db.InsertOrReplace(new LocalTemplate
                 {
-                    Id = t.Id,
-                    Title = t.Title,
-                    Body = t.Body,
-                    CategoryId = t.CategoryId,
-                    IsFavorite = t.IsFavorite,
-                    IsArchived = t.IsArchived,
-                    Tags = t.Tags,
-                    Version = t.Version,
-                    CreatedAt = t.CreatedAt,
-                    UpdatedAt = t.UpdatedAt
+                    Id = dto.Id,
+                    Title = dto.Title,
+                    Body = dto.Body,
+                    CategoryId = dto.CategoryId,
+                    IsFavorite = dto.IsFavorite,
+                    IsArchived = dto.IsArchived,
+                    Tags = dto.Tags,
+                    Version = dto.Version,
+                    CreatedAt = dto.CreatedAt,
+                    UpdatedAt = dto.UpdatedAt
                 });
             }
         }
     }
 
-    private void SeedStarterData()
+    // ── Helpers ───────────────────────────────────────────────────────────────
+    private void AddOutbox(string entityType, int entityId, SyncOperation op, long baseVersion, string payload)
     {
-        _categories.Add(new TemplateCategory { Id = 1, Name = "Penjualan & Promo", Icon = "🏷️", Version = 1 });
-        _categories.Add(new TemplateCategory { Id = 2, Name = "Customer Support", Icon = "💬", Version = 1 });
-        _categories.Add(new TemplateCategory { Id = 3, Name = "Invoice & Tagihan", Icon = "💳", Version = 1 });
-
-        _templates.Add(new MessageTemplate
+        _db.Insert(new SyncOutboxRecord
         {
-            Id = 1,
+            Id = Guid.NewGuid().ToString(),
+            EntityType = entityType,
+            EntityId = entityId,
+            Operation = (int)op,
+            BaseVersion = baseVersion,
+            CreatedAtUtc = DateTime.UtcNow,
+            PayloadJson = payload
+        });
+    }
+
+    private void SeedIfEmpty()
+    {
+        if (_db.Table<LocalCategory>().Count() > 0) return;
+
+        _db.Insert(new LocalCategory { Name = "Penjualan & Promo", Icon = "🏷️", Version = 1 });
+        _db.Insert(new LocalCategory { Name = "Customer Support", Icon = "💬", Version = 1 });
+        _db.Insert(new LocalCategory { Name = "Invoice & Tagihan", Icon = "💳", Version = 1 });
+
+        _db.Insert(new LocalTemplate
+        {
             CategoryId = 1,
             Title = "Konfirmasi Pesanan Baru",
             Body = "Halo *{{nama}}*, terima kasih telah memesan produk *{{produk}}*! Nomor resi Anda adalah `{{resi}}`.",
@@ -209,9 +325,8 @@ public class LocalDatabaseService
             Version = 1
         });
 
-        _templates.Add(new MessageTemplate
+        _db.Insert(new LocalTemplate
         {
-            Id = 2,
             CategoryId = 3,
             Title = "Pengingat Pembayaran Tagihan",
             Body = "Yth. Bpk/Ibu *{{nama}}*, tagihan *{{layanan}}* sebesar ~Rp {{nominal}}~ jatuh tempo pada _{{tanggal}}_.",
@@ -219,4 +334,6 @@ public class LocalDatabaseService
             Version = 1
         });
     }
+
+    public void Dispose() => _db.Close();
 }

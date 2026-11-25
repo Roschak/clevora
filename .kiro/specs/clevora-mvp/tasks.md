@@ -1,12 +1,12 @@
 # Clevora MVP — Implementation Tasks (Dependency-Ordered)
 - [x] **T-00:** Workspace audit awal terhadap struktur `Clevora.zip` & pembuatan paket spesifikasi (`PRD-00` s.d. `PRD-12`, `.kiro/steering/*`, `.kiro/specs/clevora-mvp/*`).
-- [ ] **T-01:** Verifikasi isi `Clevora.txt`, `mcp.json`, status Git lokal, `.NET 10 SDK`, dan `maui` workload.
-- [ ] **T-02:** Scaffold `Clevora.sln` beserta seluruh proyek `src/*` dan `tests/*` dengan target `.NET 10 LTS`.
-- [ ] **T-03:** Implementasi `Clevora.Domain` (`PlaceholderParser`, `WhatsAppFormatter`, `TextMetricsCalculator`, `ClickToChatUrlBuilder`, entitas inti) + unit test lulus di `Clevora.Domain.Tests`.
-- [ ] **T-04:** Implementasi `Clevora.Infrastructure` (`MountPointValidator` untuk `/home/data`, `ClevoraDbContext` SQLite WAL, Identity/JWT Auth) + `Clevora.Infrastructure.Tests`.
-- [ ] **T-05:** Implementasi API Auth, Categories, Templates, Favorites, dan Composer Preview pada `Clevora.Web` + `Clevora.Api.Tests`.
-- [ ] **T-06:** Implementasi Blazor UI Clevora (mengadaptasi aset visual `quicky-html-chat-template` ke branding Clevora dengan 3-panel workspace responsif).
-- [ ] **T-07:** Implementasi `IAiMessageService` (abstraksi `gpt-5-mini` & `gpt-5.6-luna`) dan `IBlobStorageService` (Azure Blob Storage) + test integrasi/kontrak.
-- [ ] **T-08:** Implementasi `Clevora.Mobile` (`.NET MAUI Blazor Hybrid`, SQLite lokal, `SyncOutbox`, Push/Pull sync, Conflict Resolution) + `Clevora.Mobile.Tests` + build Android Release.
-- [ ] **T-09:** Siapkan artefak `ops/nginx`, `ops/systemd`, `ops/scripts`, `ops/backup`, dan `ops/monitoring`.
+- [x] **T-01:** Verifikasi isi `Clevora.txt`, `mcp.json`, status Git lokal, `.NET 10 SDK`, dan `maui` workload.
+- [x] **T-02:** Scaffold `Clevora.sln` beserta seluruh proyek `src/*` dan `tests/*` dengan target `.NET 10 LTS`.
+- [x] **T-03:** Implementasi `Clevora.Domain` (`PlaceholderParser`, `WhatsAppFormatter`, `TextMetricsCalculator`, `ClickToChatUrlBuilder`, entitas inti) + unit test lulus di `Clevora.Domain.Tests`.
+- [x] **T-04:** Implementasi `Clevora.Infrastructure` (`MountPointValidator` untuk `/home/data`, `ClevoraDbContext` SQLite WAL, Identity/JWT Auth) + `Clevora.Infrastructure.Tests`.
+- [x] **T-05:** Implementasi API Auth, Categories, Templates, Favorites, dan Composer Preview pada `Clevora.Web` + `Clevora.Api.Tests`.
+- [x] **T-06:** Implementasi Blazor UI Clevora (mengadaptasi aset visual `quicky-html-chat-template` ke branding Clevora dengan 3-panel workspace responsif).
+- [x] **T-07:** Implementasi `IAiMessageService` (abstraksi `gpt-5-mini` & `gpt-5.6-luna`) dan `IBlobStorageService` (Azure Blob Storage) + test integrasi/kontrak.
+- [x] **T-08:** Implementasi `Clevora.Mobile` (`.NET MAUI Blazor Hybrid`, SQLite lokal, `SyncOutbox`, Push/Pull sync, Conflict Resolution) + `Clevora.Mobile.Tests` + build Android Release.
+- [x] **T-09:** Siapkan artefak `ops/nginx`, `ops/systemd`, `ops/scripts`, `ops/backup`, dan `ops/monitoring`.
 - [ ] **T-10:** Verifikasi staging dan eksekusi deployment produksi ke Ubuntu Azure VM setelah persetujuan pemilik proyek.
