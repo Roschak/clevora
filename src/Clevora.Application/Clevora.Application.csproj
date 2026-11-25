@@ -2,6 +2,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\Clevora.Domain\Clevora.Domain.csproj" />
+    <ProjectReference Include="..\Clevora.Shared\Clevora.Shared.csproj" />
   </ItemGroup>
 
   <PropertyGroup>

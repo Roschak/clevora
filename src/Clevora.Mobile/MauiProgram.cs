@@ -15,6 +15,9 @@ public static class MauiProgram
 			});
 
 		builder.Services.AddMauiBlazorWebView();
+		builder.Services.AddHttpClient();
+		builder.Services.AddSingleton<Clevora.Mobile.Services.LocalDatabaseService>();
+		builder.Services.AddSingleton<Clevora.Mobile.Services.MobileSyncOrchestrator>();
 
 #if DEBUG
 		builder.Services.AddBlazorWebViewDeveloperTools();

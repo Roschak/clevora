@@ -1,0 +1,67 @@
+- generic [ref=e2]:
+  - generic [ref=e3]:
+    - link "🟢 Clevora Smart WA Composer" [ref=e6] [cursor=pointer]:
+      - /url: ""
+      - generic [ref=e7]: 🟢
+      - generic [ref=e8]:
+        - strong [ref=e9]: Clevora
+        - text: Smart WA Composer
+    - navigation [ref=e11]:
+      - link "🏠 Dashboard" [ref=e13] [cursor=pointer]:
+        - /url: ""
+      - link "✏️ Composer & Preview" [ref=e16] [cursor=pointer]:
+        - /url: composer
+      - link "📋 Template Pesan" [ref=e19] [cursor=pointer]:
+        - /url: templates
+      - link "🗂️ Kategori" [ref=e22] [cursor=pointer]:
+        - /url: categories
+      - link "⭐ Favorit" [ref=e25] [cursor=pointer]:
+        - /url: favorites
+      - separator [ref=e27]
+      - link "⚡ Swagger API v1" [ref=e29] [cursor=pointer]:
+        - /url: /swagger
+      - link "👤 Akun & Sesi" [ref=e32] [cursor=pointer]:
+        - /url: auth
+  - main [ref=e34]:
+    - generic [ref=e35]:
+      - generic [ref=e36]:
+        - generic [ref=e37]: .NET 10 LTS
+        - generic [ref=e38]: Clevora Workspace v1.0
+      - generic [ref=e40]:
+        - text: Dibuat oleh
+        - strong [ref=e41]: Gravicode Studios
+        - text: dipimpin oleh
+        - strong [ref=e42]: Kang Fadhil
+    - article [ref=e43]:
+      - generic [ref=e45]:
+        - heading "🟢 Clevora" [active] [level=1] [ref=e46]
+        - paragraph [ref=e47]: Platform penyiapan pesan WhatsApp profesional
+        - paragraph [ref=e48]:
+          - text: Dibuat oleh
+          - strong [ref=e49]: Gravicode Studios
+          - text: dipimpin oleh
+          - emphasis [ref=e50]: Kang Fadhil
+      - generic [ref=e51]:
+        - link "📋 Template Pesan Buat & kelola template dengan placeholder dinamis" [ref=e52] [cursor=pointer]:
+          - /url: /templates
+          - generic [ref=e53]: 📋
+          - generic [ref=e54]: Template Pesan
+          - generic [ref=e55]: Buat & kelola template dengan placeholder dinamis
+        - link "✏️ Composer Susun pesan, preview, & salin URL WhatsApp" [ref=e56] [cursor=pointer]:
+          - /url: /composer
+          - generic [ref=e57]: ✏️
+          - generic [ref=e58]: Composer
+          - generic [ref=e59]: Susun pesan, preview, & salin URL WhatsApp
+        - link "🗂️ Kategori Kelola kategori untuk organisasi template" [ref=e60] [cursor=pointer]:
+          - /url: /categories
+          - generic [ref=e61]: 🗂️
+          - generic [ref=e62]: Kategori
+          - generic [ref=e63]: Kelola kategori untuk organisasi template
+        - link "⭐ Favorit Template yang sering digunakan" [ref=e64] [cursor=pointer]:
+          - /url: /favorites
+          - generic [ref=e65]: ⭐
+          - generic [ref=e66]: Favorit
+          - generic [ref=e67]: Template yang sering digunakan
+    - generic [ref=e68]:
+      - paragraph [ref=e69]: © 2026 Clevora — Platform Penyiapan Pesan WhatsApp Cerdas & Produktif.
+      - paragraph [ref=e70]: "Prinsip Human-in-the-Loop: Semua pesan ditinjau mandiri sebelum dikirim manual melalui aplikasi WhatsApp resmi."

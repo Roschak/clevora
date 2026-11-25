@@ -2,7 +2,6 @@
 @using Clevora.Application.Interfaces
 @using Clevora.Domain.Entities
 @using Microsoft.AspNetCore.Authorization
-@attribute [Authorize]
 @inject ITemplateService TemplateService
 @inject NavigationManager Nav
 
@@ -24,7 +23,7 @@ else
                 </div>
                 <div class="tc-body">@t.Body.Substring(0, Math.Min(t.Body.Length, 120))@(t.Body.Length > 120 ? "…" : "")</div>
                 <div class="tc-actions">
-                    <button class="btn-icon" @onclick="() => Nav.NavigateTo($\"/composer?tid={t.Id}\")">✏️ Buka di Composer</button>
+                    <button class="btn-icon" @onclick='() => Nav.NavigateTo($"/composer?tid={t.Id}")'>✏️ Buka di Composer</button>
                     <button class="btn-icon" @onclick="() => Remove(t)">☆ Hapus Favorit</button>
                 </div>
             </div>

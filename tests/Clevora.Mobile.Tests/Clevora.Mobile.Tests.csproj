@@ -20,6 +20,8 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\src\Clevora.Application\Clevora.Application.csproj" />
+    <ProjectReference Include="..\..\src\Clevora.Domain\Clevora.Domain.csproj" />
+    <ProjectReference Include="..\..\src\Clevora.Shared\Clevora.Shared.csproj" />
   </ItemGroup>
 
 </Project>

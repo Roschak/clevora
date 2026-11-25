@@ -1,0 +1,96 @@
+- generic [ref=f1e2]:
+  - generic [ref=f1e3]:
+    - link "🟢 Clevora Smart WA Composer" [ref=f1e6] [cursor=pointer]:
+      - /url: ""
+      - generic [ref=f1e7]: 🟢
+      - generic [ref=f1e8]:
+        - strong [ref=f1e9]: Clevora
+        - text: Smart WA Composer
+    - navigation [ref=f1e11]:
+      - link "🏠 Dashboard" [ref=f1e13] [cursor=pointer]:
+        - /url: ""
+      - link "✏️ Composer & Preview" [ref=f1e16] [cursor=pointer]:
+        - /url: composer
+      - link "📋 Template Pesan" [ref=f1e19] [cursor=pointer]:
+        - /url: templates
+      - link "🗂️ Kategori" [ref=f1e22] [cursor=pointer]:
+        - /url: categories
+      - link "⭐ Favorit" [ref=f1e25] [cursor=pointer]:
+        - /url: favorites
+      - separator [ref=f1e27]
+      - link "⚡ Swagger API v1" [ref=f1e29] [cursor=pointer]:
+        - /url: /swagger
+      - link "👤 Akun & Sesi" [ref=f1e32] [cursor=pointer]:
+        - /url: auth
+  - main [ref=f1e34]:
+    - generic [ref=f1e35]:
+      - generic [ref=f1e36]:
+        - generic [ref=f1e37]: .NET 10 LTS
+        - generic [ref=f1e38]: Clevora Workspace v1.0
+      - generic [ref=f1e40]:
+        - text: Dibuat oleh
+        - strong [ref=f1e41]: Gravicode Studios
+        - text: dipimpin oleh
+        - strong [ref=f1e42]: Kang Fadhil
+    - article [ref=f1e43]:
+      - generic [ref=f1e44]:
+        - generic [ref=f1e45]:
+          - generic [ref=f1e46]:
+            - heading "✏️ WhatsApp Message Composer" [active] [level=1] [ref=f1e47]
+            - paragraph [ref=f1e48]: Susun template, isi placeholder dinamis, dan tinjau format WhatsApp secara instan.
+          - generic [ref=f1e49]: Siap Kirim (Human-in-the-Loop)
+        - generic [ref=f1e51]:
+          - generic [ref=f1e52]:
+            - generic [ref=f1e53]: 📁 Pustaka Cepat
+            - generic [ref=f1e54]: "Pilih Template Siap Pakai:"
+            - combobox [ref=f1e55]:
+              - option "— Mulai dari pesan kosong —" [selected]
+            - generic [ref=f1e56]: "Nomor Tujuan WhatsApp:"
+            - generic [ref=f1e57]:
+              - generic [ref=f1e58]: 📱
+              - 'textbox "Contoh: 08123456789 atau +628..." [ref=f1e59]'
+            - generic [ref=f1e60]: Otomatis dinormalisasi ke format internasional (E.164).
+            - separator [ref=f1e61]
+            - generic [ref=f1e62]: 📎 Lampiran Dokumen
+            - generic [ref=f1e63]: Tidak ada lampiran untuk template ini.
+          - generic [ref=f1e64]:
+            - generic [ref=f1e65]:
+              - generic [ref=f1e66]: 📝 Editor Pesan
+              - generic [ref=f1e67]:
+                - button [ref=f1e68] [cursor=pointer]:
+                  - strong [ref=f1e69]: B
+                - button [ref=f1e70] [cursor=pointer]:
+                  - emphasis [ref=f1e71]: I
+                - button "S" [ref=f1e72] [cursor=pointer]
+                - button "</>" [ref=f1e73] [cursor=pointer]
+            - 'textbox "Tulis pesan Anda di sini... Gunakan {{nama_variabel}} untuk data dinamis. Contoh: Halo {{nama}}, pesanan Anda {{kode_pesanan}} sudah dikirim!" [ref=f1e74]'
+            - generic [ref=f1e76]:
+              - generic [ref=f1e77]:
+                - text: 📊
+                - strong [ref=f1e78]: "0"
+                - text: Karakter
+              - generic [ref=f1e79]:
+                - text: 📝
+                - strong [ref=f1e80]: "0"
+                - text: Kata
+            - generic [ref=f1e81]:
+              - generic [ref=f1e82]: 🤖 Asisten Penulisan AI (Azure OpenAI)
+              - generic [ref=f1e84]:
+                - button "🔧 Perbaiki Ejaan (Fix)" [ref=f1e85] [cursor=pointer]
+                - button "🔄 Tulis Ulang Profesional" [ref=f1e86] [cursor=pointer]
+                - button "✨ Compose AI (gpt-5.6-luna)" [ref=f1e87] [cursor=pointer]
+          - generic [ref=f1e89]:
+            - generic [ref=f1e91]:
+              - generic [ref=f1e92]: 🟢
+              - generic [ref=f1e93]:
+                - strong [ref=f1e94]: Penerima Pesan
+                - text: online
+            - generic [ref=f1e96]:
+              - generic [ref=f1e97]: Pratinjau pesan WhatsApp Anda akan tampil di sini secara real-time...
+              - generic [ref=f1e98]:
+                - generic [ref=f1e99]: 16:28
+                - generic [ref=f1e100]: ✓✓
+            - generic [ref=f1e101]: 🔒 Tinjau format sebelum mengirim
+    - generic [ref=f1e102]:
+      - paragraph [ref=f1e103]: © 2026 Clevora — Platform Penyiapan Pesan WhatsApp Cerdas & Produktif.
+      - paragraph [ref=f1e104]: "Prinsip Human-in-the-Loop: Semua pesan ditinjau mandiri sebelum dikirim manual melalui aplikasi WhatsApp resmi."

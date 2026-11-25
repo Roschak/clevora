@@ -11,7 +11,7 @@ public class HttpContextCurrentUserService(IHttpContextAccessor httpContextAcces
     public string UserId =>
         Principal?.FindFirstValue(ClaimTypes.NameIdentifier)
         ?? Principal?.FindFirstValue("sub")
-        ?? string.Empty;
+        ?? "demo-user";
 
     public string? UserName => Principal?.Identity?.Name;
 

@@ -19,12 +19,14 @@ public class ClevoraDbContext(DbContextOptions<ClevoraDbContext> options)
 
         builder.Entity<TemplateCategory>(e =>
         {
+            e.HasQueryFilter(c => !c.IsDeleted);
             e.HasIndex(c => c.OwnerId);
             e.Property(c => c.Name).HasMaxLength(128).IsRequired();
         });
 
         builder.Entity<MessageTemplate>(e =>
         {
+            e.HasQueryFilter(t => !t.IsDeleted);
             e.HasIndex(t => t.OwnerId);
             e.HasIndex(t => t.CategoryId);
             e.Property(t => t.Title).HasMaxLength(256).IsRequired();
@@ -36,6 +38,7 @@ public class ClevoraDbContext(DbContextOptions<ClevoraDbContext> options)
 
         builder.Entity<AttachmentItem>(e =>
         {
+            e.HasQueryFilter(a => !a.IsDeleted);
             e.HasIndex(a => a.TemplateId);
             e.Property(a => a.FileName).HasMaxLength(512);
             e.HasOne(a => a.Template)
@@ -46,6 +49,7 @@ public class ClevoraDbContext(DbContextOptions<ClevoraDbContext> options)
 
         builder.Entity<MessageDraft>(e =>
         {
+            e.HasQueryFilter(d => !d.IsDeleted);
             e.HasIndex(d => d.OwnerId);
         });
     }

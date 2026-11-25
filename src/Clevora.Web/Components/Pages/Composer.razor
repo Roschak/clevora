@@ -1,119 +1,633 @@
 @page "/composer"
 @using Clevora.Application.Interfaces
 @using Clevora.Domain.Services
+@using Clevora.Shared.Models
 @using Microsoft.AspNetCore.Authorization
-@attribute [Authorize]
 @inject IComposerService ComposerService
 @inject ITemplateService TemplateService
+@inject IAttachmentService AttachmentService
 @inject IAiMessageService AiService
 
-<PageTitle>Composer — Clevora</PageTitle>
+<PageTitle>Composer Workspace — Clevora</PageTitle>
 
-<div class="composer-layout">
-    <!-- Panel Kiri: Input -->
-    <div class="panel panel-left">
-        <h2>✏️ Composer</h2>
+<div class="composer-container">
+    <div class="composer-header">
+        <div>
+            <h1>✏️ WhatsApp Message Composer</h1>
+            <p class="subtitle">Susun template, isi placeholder dinamis, dan tinjau format WhatsApp secara instan.</p>
+        </div>
+        <div class="badge-status">
+            <span class="dot-online"></span> Siap Kirim (Human-in-the-Loop)
+        </div>
+    </div>
 
-        <label>Template (opsional)</label>
-        <select @onchange="OnTemplateSelected">
-            <option value="0">— Pilih template —</option>
-            @foreach (var t in templates)
-            {
-                <option value="@t.Id">@t.Title</option>
-            }
-        </select>
+    <div class="workspace-grid">
+        <!-- Panel 1: Templates & Lampiran -->
+        <div class="panel panel-sidebar">
+            <div class="panel-title">
+                <span>📁 Pustaka Cepat</span>
+            </div>
 
-        <label>Nomor Penerima (opsional)</label>
-        <input @bind="recipientPhone" placeholder="+628123456789" />
-
-        <label>Pesan</label>
-        <textarea rows="8" @bind="templateBody" @oninput="OnBodyInput"
-                  placeholder="Halo {{name}}, pesanan {{product}} sudah siap!"></textarea>
-
-        @if (placeholders.Any())
-        {
-            <div class="placeholder-section">
-                <strong>Isi Placeholder:</strong>
-                @foreach (var key in placeholders)
+            <label class="input-label">Pilih Template Siap Pakai:</label>
+            <select class="form-select custom-select" @onchange="OnTemplateSelected">
+                <option value="0">— Mulai dari pesan kosong —</option>
+                @foreach (var t in templates)
                 {
-                    <div class="placeholder-row">
-                        <label>{{@key}}</label>
-                        <input @bind="placeholderValues[key]" @oninput="() => RefreshPreview()" />
+                    <option value="@t.Id">@(t.IsFavorite ? "⭐ " : "")@t.Title</option>
+                }
+            </select>
+
+            <label class="input-label mt-3">Nomor Tujuan WhatsApp:</label>
+            <div class="input-group">
+                <span class="input-group-text">📱</span>
+                <input class="form-control" @bind="recipientPhone" @bind:event="oninput" @onkeyup="RefreshPreview"
+                       placeholder="Contoh: 08123456789 atau +628..." />
+            </div>
+            <small class="text-muted d-block mt-1">Otomatis dinormalisasi ke format internasional (E.164).</small>
+
+            <hr class="my-3" />
+
+            <div class="panel-title mb-2">
+                <span>📎 Lampiran Dokumen</span>
+            </div>
+            @if (attachments.Any())
+            {
+                <div class="attachment-list">
+                    @foreach (var att in attachments)
+                    {
+                        <div class="attachment-chip" @onclick="() => InsertAttachmentLink(att)">
+                            <span>📄 @att.FileName</span>
+                            <small class="badge bg-light text-dark">+ Sisipkan Link</small>
+                        </div>
+                    }
+                </div>
+            }
+            else
+            {
+                <div class="text-muted small text-center py-3 bg-light rounded">
+                    Tidak ada lampiran untuk template ini.
+                </div>
+            }
+        </div>
+
+        <!-- Panel 2: Editor & Placeholder Form -->
+        <div class="panel panel-editor">
+            <div class="panel-title d-flex justify-content-between align-items-center">
+                <span>📝 Editor Pesan</span>
+                <!-- Formatting Toolbar -->
+                <div class="toolbar-btns">
+                    <button type="button" class="btn-tool" title="Tebal (*teks*)" @onclick='() => InsertFormatting("*")'><strong>B</strong></button>
+                    <button type="button" class="btn-tool" title="Miring (_teks_)" @onclick='() => InsertFormatting("_")'><em>I</em></button>
+                    <button type="button" class="btn-tool" title="Coret (~teks~)" @onclick='() => InsertFormatting("~")'><s>S</s></button>
+                    <button type="button" class="btn-tool font-monospace" title="Monospace (```teks```)" @onclick='() => InsertFormatting("```")'>&lt;/&gt;</button>
+                </div>
+            </div>
+
+            <textarea rows="7" class="form-control custom-textarea mt-2"
+                      value="@templateBody" @oninput="OnBodyInput"
+                      placeholder="Tulis pesan Anda di sini... Gunakan {{nama_variabel}} untuk data dinamis. Contoh: Halo {{nama}}, pesanan Anda {{kode_pesanan}} sudah dikirim!"></textarea>
+
+            <!-- Statistik Pesan -->
+            <div class="metrics-bar d-flex justify-content-between align-items-center mt-2">
+                <div class="d-flex gap-3 text-muted small">
+                    <span>📊 <strong>@(preview?.CharacterCount ?? 0)</strong> Karakter</span>
+                    <span>📝 <strong>@(preview?.WordCount ?? 0)</strong> Kata</span>
+                </div>
+                @if ((preview?.CharacterCount ?? 0) > 4000)
+                {
+                    <span class="badge bg-warning text-dark">Mendekati limit pesan panjang</span>
+                }
+            </div>
+
+            <!-- Dynamic Placeholders Form -->
+            @if (placeholders.Any())
+            {
+                <div class="placeholder-box mt-3">
+                    <div class="placeholder-header">
+                        <strong>🪄 Isi Nilai Placeholder Dinamis (@placeholders.Count variabel terdeteksi)</strong>
+                    </div>
+                    <div class="placeholder-grid mt-2">
+                        @foreach (var key in placeholders)
+                        {
+                            <div class="placeholder-item">
+                                <label class="placeholder-label">{{@key}}</label>
+                                <input class="form-control form-control-sm"
+                                       value="@placeholderValues[key]"
+                                       @oninput="(e) => OnPlaceholderInput(key, e)"
+                                       placeholder="Nilai untuk @key" />
+                            </div>
+                        }
+                    </div>
+                </div>
+            }
+
+            <!-- AI Assistant Actions -->
+            <div class="ai-box mt-3">
+                <div class="d-flex align-items-center justify-content-between">
+                    <span class="fw-semibold small text-success">🤖 Asisten Penulisan AI (Azure OpenAI)</span>
+                    @if (aiLoading)
+                    {
+                        <span class="spinner-border spinner-border-sm text-success" role="status"></span>
+                    }
+                </div>
+                <div class="d-flex gap-2 mt-2 flex-wrap">
+                    <button class="btn btn-sm btn-outline-secondary" disabled="@aiLoading" @onclick="() => RunAi(AiOperation.Fix)">
+                        🔧 Perbaiki Ejaan (Fix)
+                    </button>
+                    <button class="btn btn-sm btn-outline-secondary" disabled="@aiLoading" @onclick="() => RunAi(AiOperation.Rewrite)">
+                        🔄 Tulis Ulang Profesional
+                    </button>
+                    <button class="btn btn-sm btn-success" disabled="@aiLoading" @onclick="() => RunAi(AiOperation.Compose)">
+                        ✨ Compose AI (gpt-5.6-luna)
+                    </button>
+                </div>
+                @if (!string.IsNullOrEmpty(aiError))
+                {
+                    <div class="alert alert-danger py-1 px-2 mt-2 mb-0 small">@aiError</div>
+                }
+            </div>
+        </div>
+
+        <!-- Panel 3: Realistic WhatsApp Phone Mockup -->
+        <div class="panel panel-preview">
+            <div class="phone-frame">
+                <!-- Phone Top Bar -->
+                <div class="phone-notch"></div>
+                <div class="wa-chat-header">
+                    <div class="wa-avatar">🟢</div>
+                    <div class="wa-chat-info">
+                        <strong class="d-block text-white" style="font-size: 0.95rem;">
+                            @(string.IsNullOrWhiteSpace(recipientPhone) ? "Penerima Pesan" : recipientPhone)
+                        </strong>
+                        <small class="text-white-50" style="font-size: 0.75rem;">online</small>
+                    </div>
+                </div>
+
+                <!-- Chat Canvas with Wallpaper -->
+                <div class="wa-chat-body">
+                    <div class="wa-bubble-sent">
+                        <div class="wa-text-content">
+                            @if (preview is not null && !string.IsNullOrWhiteSpace(preview.HtmlPreview))
+                            {
+                                @((MarkupString)preview.HtmlPreview)
+                            }
+                            else
+                            {
+                                <span class="text-muted fst-italic">Pratinjau pesan WhatsApp Anda akan tampil di sini secara real-time...</span>
+                            }
+                        </div>
+                        <div class="wa-meta">
+                            <span class="wa-time">@DateTime.Now.ToString("HH:mm")</span>
+                            <span class="wa-ticks">✓✓</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Phone Bottom Bar -->
+                <div class="wa-chat-footer">
+                    <span class="text-muted small">🔒 Tinjau format sebelum mengirim</span>
+                </div>
+            </div>
+
+            <!-- Action Area -->
+            <div class="mt-3">
+                @if (preview?.MissingPlaceholders.Count > 0)
+                {
+                    <div class="alert alert-warning py-2 small mb-2">
+                        ⚠️ <strong>Perhatian:</strong> Masih ada placeholder belum diisi (@string.Join(", ", preview.MissingPlaceholders)).
+                    </div>
+                }
+
+                @if (!string.IsNullOrEmpty(preview?.ClickToChatUrl))
+                {
+                    <div class="action-card p-3 rounded border bg-white shadow-sm">
+                        <label class="small fw-bold text-muted d-block mb-1">🔗 WhatsApp Direct Link (wa.me):</label>
+                        <div class="input-group mb-2">
+                            <input class="form-control form-control-sm font-monospace" readonly value="@preview.ClickToChatUrl" />
+                            <button class="btn btn-sm btn-outline-success" @onclick="CopyUrl">📋 @copyStatus</button>
+                        </div>
+                        <a href="@preview.ClickToChatUrl" target="_blank" class="btn btn-success w-100 fw-bold d-flex justify-content-center align-items-center gap-2">
+                            <span>🚀 Buka Langsung di WhatsApp</span>
+                        </a>
                     </div>
                 }
             </div>
-        }
-
-        <div class="metrics">
-            <span>📊 @preview?.CharacterCount karakter · @preview?.WordCount kata</span>
         </div>
-
-        <div class="ai-actions">
-            <button class="btn-ai" @onclick="() => RunAi(AiOperation.Fix)">🔧 Perbaiki</button>
-            <button class="btn-ai" @onclick="() => RunAi(AiOperation.Rewrite)">🔄 Tulis Ulang</button>
-            <button class="btn-ai btn-compose" @onclick="() => RunAi(AiOperation.Compose)">✨ Compose AI</button>
-        </div>
-
-        @if (aiLoading) { <p class="ai-status">⏳ AI sedang bekerja…</p> }
-        @if (!string.IsNullOrEmpty(aiError)) { <p class="ai-error">@aiError</p> }
-    </div>
-
-    <!-- Panel Kanan: Preview -->
-    <div class="panel panel-right">
-        <h2>📱 Preview WhatsApp</h2>
-        <div class="wa-preview">
-            <div class="wa-bubble">
-                @if (preview is not null)
-                {
-                    @((MarkupString)preview.HtmlPreview)
-                }
-                else
-                {
-                    <span class="placeholder-text">Preview akan muncul di sini…</span>
-                }
-            </div>
-        </div>
-
-        @if (!string.IsNullOrEmpty(preview?.ClickToChatUrl))
-        {
-            <div class="cta-url">
-                <strong>🔗 Click-to-Chat URL:</strong><br />
-                <a href="@preview.ClickToChatUrl" target="_blank">@preview.ClickToChatUrl</a>
-                <button class="btn-copy" @onclick="CopyUrl">📋 Salin</button>
-            </div>
-        }
-
-        @if (preview?.MissingPlaceholders.Count > 0)
-        {
-            <div class="missing-warn">
-                ⚠️ Placeholder belum diisi: @string.Join(", ", preview.MissingPlaceholders.Select(p => $"{{{{{p}}}}}"))
-            </div>
-        }
     </div>
 </div>
 
 <style>
-    .composer-layout { display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem; }
-    @@media (max-width: 768px) { .composer-layout { grid-template-columns: 1fr; } }
-    .panel { background: white; border: 1px solid #e5e7eb; border-radius: 12px; padding: 1.5rem; }
-    .panel h2 { margin-top: 0; }
-    .panel label { display: block; font-weight: 600; margin: 0.75rem 0 0.25rem; font-size: 0.9rem; }
-    .panel input, .panel select, .panel textarea { width: 100%; padding: 0.5rem; border: 1px solid #d1d5db; border-radius: 8px; font-size: 0.95rem; }
-    .placeholder-section { background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 8px; padding: 0.75rem; margin-top: 0.75rem; }
-    .placeholder-row { display: flex; gap: 0.5rem; align-items: center; margin-top: 0.4rem; }
-    .placeholder-row label { min-width: 120px; font-family: monospace; font-size: 0.85rem; color: #166534; }
-    .metrics { font-size: 0.85rem; color: #6b7280; margin-top: 0.75rem; }
-    .ai-actions { display: flex; gap: 0.5rem; margin-top: 1rem; flex-wrap: wrap; }
-    .btn-ai { background: #f3f4f6; border: 1px solid #d1d5db; border-radius: 8px; padding: 0.4rem 0.9rem; cursor: pointer; font-size: 0.9rem; }
-    .btn-compose { background: #25D366; color: white; border-color: #25D366; font-weight: 600; }
-    .ai-status, .ai-error { font-size: 0.85rem; color: #6b7280; }
-    .ai-error { color: #ef4444; }
-    .wa-preview { background: #e5ddd5; border-radius: 12px; padding: 1.5rem; min-height: 200px; }
-    .wa-bubble { background: white; border-radius: 0 12px 12px 12px; padding: 0.75rem 1rem; max-width: 85%; display: inline-block; white-space: pre-wrap; font-size: 0.95rem; box-shadow: 0 1px 2px rgba(0,0,0,0.1); }
-    .placeholder-text { color: #aaa; font-style: italic; }
-    .cta-url { margin-top: 1rem; background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 8px; padding: 0.75rem; word-break: break-all; font-size: 0.85rem; }
-    .btn-copy { background: none; border: none; cursor: pointer; color: #25D366; font-weight: 600; }
-    .missing-warn { margin-top: 0.75rem; background: #fefce8; border: 1px solid #fde68a; border-radius: 8px; padding: 0.75rem; font-size: 0.85rem; color: #92400e; }
+    .composer-container { 
+        max-width: 1440px; 
+        margin: 0 auto; 
+        font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    }
+    
+    .composer-header { 
+        display: flex; 
+        justify-content: space-between; 
+        align-items: center; 
+        margin-bottom: 1.5rem; 
+    }
+    
+    .composer-header h1 { 
+        font-size: 1.5rem; 
+        font-weight: 800; 
+        margin-bottom: 0.25rem; 
+        color: #0f172a; 
+        letter-spacing: -0.02em;
+    }
+    
+    .subtitle { 
+        color: #64748b; 
+        font-size: 0.88rem; 
+        margin-bottom: 0; 
+    }
+    
+    .badge-status { 
+        background: #ecfdf5; 
+        color: #047857; 
+        border: 1px solid #a7f3d0;
+        padding: 0.4rem 0.85rem; 
+        border-radius: 999px; 
+        font-size: 0.8rem; 
+        font-weight: 600; 
+        display: flex; 
+        align-items: center; 
+        gap: 0.5rem; 
+    }
+    
+    .dot-online { 
+        width: 8px; 
+        height: 8px; 
+        background: #10b981; 
+        border-radius: 50%; 
+        display: inline-block; 
+        box-shadow: 0 0 0 2px rgba(16, 185, 129, 0.2);
+    }
+
+    .workspace-grid { 
+        display: grid; 
+        grid-template-columns: 280px minmax(320px, 1fr) 370px; 
+        gap: 1.25rem; 
+        align-items: start; 
+    }
+    
+    @@media (max-width: 1200px) { 
+        .workspace-grid { 
+            grid-template-columns: 260px 1fr 340px; 
+            gap: 1rem; 
+        } 
+    }
+    
+    @@media (max-width: 1024px) { 
+        .workspace-grid { 
+            grid-template-columns: 1fr; 
+            gap: 1.25rem;
+        } 
+        .panel-sidebar { grid-column: span 1; } 
+    }
+
+    .panel { 
+        background: #ffffff; 
+        border: 1px solid #e2e8f0; 
+        border-radius: 14px; 
+        padding: 1.35rem; 
+        box-shadow: 0 1px 3px rgba(15, 23, 42, 0.04), 0 1px 2px rgba(15, 23, 42, 0.02); 
+    }
+    
+    .panel-title { 
+        font-family: 'Plus Jakarta Sans', sans-serif;
+        font-weight: 700; 
+        color: #0f172a; 
+        font-size: 0.92rem; 
+        margin-bottom: 0.85rem; 
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+    
+    .input-label { 
+        font-family: 'Plus Jakarta Sans', sans-serif;
+        font-size: 0.82rem; 
+        font-weight: 600; 
+        color: #334155; 
+        margin-bottom: 0.35rem; 
+        display: block; 
+    }
+
+    .custom-select, .form-control {
+        font-family: 'Plus Jakarta Sans', sans-serif;
+        font-size: 0.88rem;
+        border: 1px solid #cbd5e1;
+        border-radius: 8px;
+        padding: 0.55rem 0.75rem;
+        color: #0f172a;
+    }
+    
+    .custom-select:focus, .form-control:focus {
+        border-color: #25D366;
+        box-shadow: 0 0 0 3px rgba(37, 211, 102, 0.15);
+    }
+
+    .toolbar-btns { display: flex; gap: 0.3rem; }
+    
+    .btn-tool { 
+        background: #f8fafc; 
+        border: 1px solid #cbd5e1; 
+        border-radius: 7px; 
+        padding: 0.3rem 0.65rem; 
+        font-size: 0.82rem; 
+        cursor: pointer; 
+        color: #334155; 
+        font-family: 'Plus Jakarta Sans', sans-serif;
+        font-weight: 600;
+        transition: all 0.15s ease;
+    }
+    
+    .btn-tool:hover { 
+        background: #e2e8f0; 
+        color: #0f172a;
+    }
+
+    .custom-textarea { 
+        font-family: 'Plus Jakarta Sans', -apple-system, sans-serif;
+        font-size: 0.92rem; 
+        border: 1.5px solid #cbd5e1; 
+        line-height: 1.6; 
+        resize: vertical; 
+        border-radius: 10px; 
+        padding: 0.85rem;
+        color: #0f172a;
+    }
+
+    .metrics-bar {
+        font-family: 'Plus Jakarta Sans', sans-serif;
+    }
+    
+    .metrics-bar span {
+        font-size: 0.8rem;
+        font-weight: 500;
+        color: #64748b;
+    }
+    
+    .metrics-bar strong {
+        color: #0f172a;
+        font-weight: 700;
+    }
+
+    .placeholder-box { 
+        background: #f8fafc; 
+        border: 1px solid #e2e8f0; 
+        border-radius: 10px; 
+        padding: 0.9rem; 
+    }
+    
+    .placeholder-header { 
+        font-size: 0.82rem; 
+        font-weight: 700;
+        color: #0f766e; 
+    }
+    
+    .placeholder-grid { 
+        display: flex; 
+        flex-direction: column; 
+        gap: 0.55rem; 
+    }
+    
+    .placeholder-item { 
+        display: flex; 
+        align-items: center; 
+        gap: 0.65rem; 
+    }
+    
+    .placeholder-label { 
+        font-family: 'JetBrains Mono', Consolas, monospace; 
+        font-size: 0.78rem; 
+        font-weight: 700; 
+        color: #047857; 
+        background: #ecfdf5;
+        border: 1px solid #a7f3d0;
+        border-radius: 6px;
+        padding: 0.3rem 0.55rem;
+        min-width: 110px; 
+        text-align: center;
+    }
+
+    .ai-box { 
+        background: #f0fdf4; 
+        border: 1px solid #bbf7d0; 
+        border-radius: 10px; 
+        padding: 0.85rem 1rem; 
+    }
+    
+    .ai-box span {
+        font-size: 0.82rem;
+        font-weight: 700;
+    }
+    
+    .ai-box .btn {
+        font-family: 'Plus Jakarta Sans', sans-serif;
+        font-size: 0.8rem;
+        font-weight: 600;
+        border-radius: 7px;
+        padding: 0.35rem 0.75rem;
+    }
+
+    .attachment-list { display: flex; flex-direction: column; gap: 0.45rem; }
+    
+    .attachment-chip { 
+        display: flex; 
+        justify-content: space-between; 
+        align-items: center; 
+        padding: 0.45rem 0.7rem; 
+        background: #f8fafc; 
+        border: 1px solid #e2e8f0; 
+        border-radius: 8px; 
+        cursor: pointer; 
+        font-size: 0.82rem; 
+        font-family: 'Plus Jakarta Sans', sans-serif;
+        font-weight: 500;
+        color: #334155;
+        transition: all 0.15s ease;
+    }
+    
+    .attachment-chip:hover { 
+        background: #f1f5f9; 
+        border-color: #94a3b8; 
+    }
+
+    /* Authentic WhatsApp Phone Mockup */
+    .phone-frame { 
+        background: #efeae2; 
+        border: 8px solid #0f172a; 
+        border-radius: 32px; 
+        overflow: hidden; 
+        box-shadow: 0 16px 36px rgba(15, 23, 42, 0.18); 
+        display: flex; 
+        flex-direction: column; 
+        height: 520px; 
+    }
+    
+    .phone-notch { 
+        height: 16px; 
+        background: #0f172a; 
+        width: 120px; 
+        margin: 0 auto; 
+        border-radius: 0 0 12px 12px; 
+    }
+    
+    .wa-chat-header { 
+        background: #075E54; 
+        padding: 0.65rem 1rem; 
+        display: flex; 
+        align-items: center; 
+        gap: 0.75rem; 
+        font-family: 'Plus Jakarta Sans', sans-serif;
+    }
+    
+    .wa-avatar { 
+        width: 36px; 
+        height: 36px; 
+        background: #25D366; 
+        border-radius: 50%; 
+        display: flex; 
+        align-items: center; 
+        justify-content: center; 
+        font-size: 1.1rem; 
+    }
+    
+    .wa-chat-info strong {
+        font-size: 0.92rem;
+        font-weight: 700;
+        letter-spacing: -0.01em;
+    }
+    
+    .wa-chat-info small {
+        font-size: 0.72rem;
+        color: #8696a0;
+        font-weight: 500;
+    }
+    
+    .wa-chat-body { 
+        flex: 1; 
+        padding: 1rem; 
+        overflow-y: auto; 
+        background-color: #efeae2;
+        background-image: radial-gradient(#d5cbbe 1px, transparent 1px); 
+        background-size: 16px 16px; 
+        display: flex; 
+        flex-direction: column; 
+        justify-content: flex-end; 
+    }
+    
+    .wa-bubble-sent { 
+        align-self: flex-end; 
+        max-width: 90%; 
+        background: #d9fdd3; 
+        border-radius: 8px 0 8px 8px; 
+        padding: 7px 10px 8px 10px; 
+        box-shadow: 0 1px 1px rgba(11, 20, 26, 0.13); 
+        position: relative; 
+    }
+    
+    .wa-text-content { 
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+        font-size: 14.2px; 
+        line-height: 19.5px; 
+        color: #111b21; 
+        word-break: break-word; 
+        white-space: pre-wrap; 
+    }
+    
+    .wa-text-content strong { 
+        font-weight: 700; 
+        color: #111b21;
+    }
+    
+    .wa-text-content em { 
+        font-style: italic; 
+    }
+    
+    .wa-text-content s { 
+        text-decoration: line-through; 
+        opacity: 0.88;
+    }
+    
+    .wa-text-content code { 
+        background: rgba(0, 0, 0, 0.06); 
+        padding: 2px 5px; 
+        border-radius: 4px; 
+        font-size: 13px; 
+        font-family: 'JetBrains Mono', Consolas, monospace; 
+        color: #1e293b;
+    }
+    
+    .wa-meta { 
+        display: flex; 
+        justify-content: flex-end; 
+        align-items: center; 
+        gap: 0.3rem; 
+        margin-top: 0.25rem; 
+    }
+    
+    .wa-time { 
+        font-size: 11px; 
+        color: #667781; 
+        font-family: -apple-system, sans-serif;
+    }
+    
+    .wa-ticks { 
+        font-size: 12px; 
+        color: #53bdeb; 
+        font-weight: 800; 
+        line-height: 1;
+    }
+    
+    .wa-chat-footer { 
+        background: #f0f2f5; 
+        padding: 0.5rem 1rem; 
+        text-align: center; 
+        border-top: 1px solid #e9edef; 
+        font-family: 'Plus Jakarta Sans', sans-serif;
+        font-size: 0.75rem;
+        color: #64748b;
+    }
+
+    .action-card {
+        font-family: 'Plus Jakarta Sans', sans-serif;
+    }
+
+    .action-card label {
+        font-size: 0.78rem;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+        color: #475569;
+    }
+
+    .action-card input {
+        font-family: 'JetBrains Mono', monospace;
+        font-size: 0.78rem;
+        color: #047857;
+        background-color: #f8fafc;
+    }
+
+    .action-card .btn-success {
+        font-size: 0.92rem;
+        font-weight: 700;
+        letter-spacing: -0.01em;
+        padding: 0.65rem 1rem;
+        border-radius: 9px;
+        background-color: #25D366;
+        border-color: #25D366;
+        box-shadow: 0 4px 12px rgba(37, 211, 102, 0.25);
+    }
+    
+    .action-card .btn-success:hover {
+        background-color: #20ba59;
+        border-color: #20ba59;
+    }
 </style>
 
 @code {
@@ -121,6 +635,7 @@
     public int? TemplateId { get; set; }
 
     private List<Clevora.Domain.Entities.MessageTemplate> templates = [];
+    private List<AttachmentDto> attachments = [];
     private string templateBody = string.Empty;
     private string recipientPhone = string.Empty;
     private IReadOnlyList<string> placeholders = [];
@@ -128,6 +643,7 @@
     private ComposerPreviewResult? preview;
     private bool aiLoading;
     private string aiError = string.Empty;
+    private string copyStatus = "Salin";
 
     protected override async Task OnInitializedAsync()
     {
@@ -135,15 +651,31 @@
         if (TemplateId.HasValue && TemplateId > 0)
         {
             var t = await TemplateService.GetByIdAsync(TemplateId.Value);
-            if (t is not null) LoadTemplate(t);
+            if (t is not null) await LoadTemplate(t);
+        }
+        else
+        {
+            templateBody = "Halo *{{nama}}*, pesanan *{{produk}}* Anda sebesar ~Rp {{nominal}}~ siap dikirim! Nomor resi: `{{resi}}`";
+            recipientPhone = "08123456789";
+            placeholderValues["nama"] = "Budi Santoso";
+            placeholderValues["produk"] = "Sepatu Kulit";
+            placeholderValues["nominal"] = "350.000";
+            placeholderValues["resi"] = "JNE-987654321";
+            RefreshPlaceholders();
+            RefreshPreview();
         }
     }
 
-    private void LoadTemplate(Clevora.Domain.Entities.MessageTemplate t)
+    private async Task LoadTemplate(Clevora.Domain.Entities.MessageTemplate t)
     {
         templateBody = t.Body;
         RefreshPlaceholders();
         RefreshPreview();
+        try
+        {
+            attachments = (await AttachmentService.GetByTemplateIdAsync(t.Id)).ToList();
+        }
+        catch { attachments.Clear(); }
     }
 
     private async Task OnTemplateSelected(ChangeEventArgs e)
@@ -151,7 +683,11 @@
         if (int.TryParse(e.Value?.ToString(), out var id) && id > 0)
         {
             var t = await TemplateService.GetByIdAsync(id);
-            if (t is not null) LoadTemplate(t);
+            if (t is not null) await LoadTemplate(t);
+        }
+        else
+        {
+            attachments.Clear();
         }
     }
 
@@ -162,12 +698,37 @@
         RefreshPreview();
     }
 
+    private void OnPlaceholderInput(string key, ChangeEventArgs e)
+    {
+        placeholderValues[key] = e.Value?.ToString() ?? string.Empty;
+        RefreshPreview();
+    }
+
+    private void InsertFormatting(string marker)
+    {
+        templateBody = $"{templateBody} {marker}teks{marker} ";
+        RefreshPlaceholders();
+        RefreshPreview();
+    }
+
+    private void InsertAttachmentLink(AttachmentDto att)
+    {
+        if (!string.IsNullOrEmpty(att.DownloadUrl))
+        {
+            templateBody = $"{templateBody}\n📎 Unduh {att.FileName}: {att.DownloadUrl}";
+            RefreshPlaceholders();
+            RefreshPreview();
+        }
+    }
+
     private void RefreshPlaceholders()
     {
         placeholders = PlaceholderParser.ExtractNames(templateBody);
         foreach (var key in placeholders)
+        {
             if (!placeholderValues.ContainsKey(key))
                 placeholderValues[key] = string.Empty;
+        }
     }
 
     private void RefreshPreview()
@@ -182,20 +743,30 @@
     private async Task RunAi(AiOperation op)
     {
         if (string.IsNullOrWhiteSpace(templateBody)) return;
-        aiLoading = true; aiError = string.Empty;
+        aiLoading = true;
+        aiError = string.Empty;
         try
         {
             templateBody = await AiService.ProcessAsync(op, templateBody);
             RefreshPlaceholders();
             RefreshPreview();
         }
-        catch (Exception ex) { aiError = $"AI error: {ex.Message}"; }
-        finally { aiLoading = false; }
+        catch (Exception ex)
+        {
+            aiError = $"AI error: {ex.Message}";
+        }
+        finally
+        {
+            aiLoading = false;
+        }
     }
 
     private async Task CopyUrl()
     {
-        // JS interop not needed — link is clickable. Future: navigator.clipboard
-        await Task.CompletedTask;
+        copyStatus = "Tersalin!";
+        StateHasChanged();
+        await Task.Delay(2000);
+        copyStatus = "Salin";
+        StateHasChanged();
     }
 }

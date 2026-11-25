@@ -37,6 +37,7 @@ public class CategoryService(ClevoraDbContext db, ICurrentUserService currentUse
         category.Name = name;
         category.Description = description;
         category.Icon = icon;
+        category.Version++;
         category.UpdatedAt = DateTime.UtcNow;
         await db.SaveChangesAsync(ct);
         return category;
@@ -47,6 +48,7 @@ public class CategoryService(ClevoraDbContext db, ICurrentUserService currentUse
         var category = await GetByIdAsync(id, ct)
             ?? throw new KeyNotFoundException($"Category {id} not found.");
         category.IsArchived = true;
+        category.Version++;
         category.UpdatedAt = DateTime.UtcNow;
         await db.SaveChangesAsync(ct);
     }
@@ -55,7 +57,9 @@ public class CategoryService(ClevoraDbContext db, ICurrentUserService currentUse
     {
         var category = await GetByIdAsync(id, ct)
             ?? throw new KeyNotFoundException($"Category {id} not found.");
-        db.Categories.Remove(category);
+        category.IsDeleted = true;
+        category.Version++;
+        category.UpdatedAt = DateTime.UtcNow;
         await db.SaveChangesAsync(ct);
     }
 }

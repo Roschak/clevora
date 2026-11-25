@@ -1,0 +1,124 @@
+- generic [ref=e2]:
+  - generic [ref=e3]:
+    - link "🟢 Clevora Smart WA Composer" [ref=e6] [cursor=pointer]:
+      - /url: ""
+      - generic [ref=e7]: 🟢
+      - generic [ref=e8]:
+        - strong [ref=e9]: Clevora
+        - text: Smart WA Composer
+    - navigation [ref=e11]:
+      - link "🏠 Dashboard" [ref=e13] [cursor=pointer]:
+        - /url: ""
+      - link "✏️ Composer & Preview" [ref=e16] [cursor=pointer]:
+        - /url: composer
+      - link "📋 Template Pesan" [ref=e19] [cursor=pointer]:
+        - /url: templates
+      - link "🗂️ Kategori" [ref=e22] [cursor=pointer]:
+        - /url: categories
+      - link "⭐ Favorit" [ref=e25] [cursor=pointer]:
+        - /url: favorites
+      - separator [ref=e27]
+      - link "⚡ Swagger API v1" [ref=e29] [cursor=pointer]:
+        - /url: /swagger
+      - link "👤 Akun & Sesi" [ref=e32] [cursor=pointer]:
+        - /url: auth
+  - main [ref=e34]:
+    - generic [ref=e35]:
+      - generic [ref=e36]:
+        - generic [ref=e37]: .NET 10 LTS
+        - generic [ref=e38]: Clevora Workspace v1.0
+      - generic [ref=e40]:
+        - text: Dibuat oleh
+        - strong [ref=e41]: Gravicode Studios
+        - text: dipimpin oleh
+        - strong [ref=e42]: Kang Fadhil
+    - article [ref=e43]:
+      - generic [ref=e44]:
+        - generic [ref=e45]:
+          - generic [ref=e46]:
+            - heading "✏️ WhatsApp Message Composer" [level=1] [ref=e47]
+            - paragraph [ref=e48]: Susun template, isi placeholder dinamis, dan tinjau format WhatsApp secara instan.
+          - generic [ref=e49]: Siap Kirim (Human-in-the-Loop)
+        - generic [ref=e51]:
+          - generic [ref=e52]:
+            - generic [ref=e53]: 📁 Pustaka Cepat
+            - generic [ref=e54]: "Pilih Template Siap Pakai:"
+            - combobox [ref=e55]:
+              - option "— Mulai dari pesan kosong —" [selected]
+            - generic [ref=e56]: "Nomor Tujuan WhatsApp:"
+            - generic [ref=e57]:
+              - generic [ref=e58]: 📱
+              - 'textbox "Contoh: 08123456789 atau +628..." [ref=e59]': "08123456789"
+            - generic [ref=e60]: Otomatis dinormalisasi ke format internasional (E.164).
+            - separator [ref=e61]
+            - generic [ref=e62]: 📎 Lampiran Dokumen
+            - generic [ref=e63]: Tidak ada lampiran untuk template ini.
+          - generic [ref=e64]:
+            - generic [ref=e65]:
+              - generic [ref=e66]: 📝 Editor Pesan
+              - generic [ref=e67]:
+                - button [ref=e68] [cursor=pointer]:
+                  - strong [ref=e69]: B
+                - button [ref=e70] [cursor=pointer]:
+                  - emphasis [ref=e71]: I
+                - button "S" [ref=e72] [cursor=pointer]
+                - button "</>" [ref=e73] [cursor=pointer]
+            - 'textbox "Tulis pesan Anda di sini... Gunakan {{nama_variabel}} untuk data dinamis. Contoh: Halo {{nama}}, pesanan Anda {{kode_pesanan}} sudah dikirim!" [ref=e74]': "Halo *{{nama}}*, pesanan *{{produk}}* Anda sebesar ~Rp {{nominal}}~ siap dikirim! Nomor resi: `{{resi}}`"
+            - generic [ref=e76]:
+              - generic [ref=e77]:
+                - text: 📊
+                - strong [ref=e78]: "111"
+                - text: Karakter
+              - generic [ref=e79]:
+                - text: 📝
+                - strong [ref=e80]: "15"
+                - text: Kata
+            - generic [ref=e81]:
+              - strong [ref=e83]: 🪄 Isi Nilai Placeholder Dinamis (4 variabel terdeteksi)
+              - generic [ref=e84]:
+                - generic [ref=e85]:
+                  - generic [ref=e86]: "{{nama}}"
+                  - textbox "Nilai untuk nama" [ref=e87]: Budi Santoso
+                - generic [ref=e88]:
+                  - generic [ref=e89]: "{{produk}}"
+                  - textbox "Nilai untuk produk" [ref=e90]: Sepatu Kulit
+                - generic [ref=e91]:
+                  - generic [ref=e92]: "{{nominal}}"
+                  - textbox "Nilai untuk nominal" [ref=e93]: "350.000"
+                - generic [ref=e94]:
+                  - generic [ref=e95]: "{{resi}}"
+                  - textbox "Nilai untuk resi" [ref=e96]: JNE-987654321
+            - generic [ref=e97]:
+              - generic [ref=e98]: 🤖 Asisten Penulisan AI (Azure OpenAI)
+              - generic [ref=e100]:
+                - button "🔧 Perbaiki Ejaan (Fix)" [ref=e101] [cursor=pointer]
+                - button "🔄 Tulis Ulang Profesional" [ref=e102] [cursor=pointer]
+                - button "✨ Compose AI (gpt-5.6-luna)" [ref=e103] [cursor=pointer]
+          - generic [ref=e104]:
+            - generic [ref=e105]:
+              - generic [ref=e107]:
+                - generic [ref=e108]: 🟢
+                - generic [ref=e109]:
+                  - strong [ref=e110]: "08123456789"
+                  - text: online
+              - generic [ref=e112]:
+                - generic [ref=e113]:
+                  - text: Halo
+                  - strong [ref=e114]: Budi Santoso
+                  - text: ", pesanan"
+                  - strong [ref=e115]: Sepatu Kulit
+                  - text: "Anda sebesar Rp 350.000 siap dikirim! Nomor resi: `JNE-987654321`"
+                - generic [ref=e116]:
+                  - generic [ref=e117]: 17:18
+                  - generic [ref=e118]: ✓✓
+              - generic [ref=e119]: 🔒 Tinjau format sebelum mengirim
+            - generic [ref=e121]:
+              - generic [ref=e122]: "🔗 WhatsApp Direct Link (wa.me):"
+              - generic [ref=e123]:
+                - textbox [ref=e124]: https://wa.me/08123456789?text=Halo%20%2ABudi%20Santoso%2A%2C%20pesanan%20%2ASepatu%20Kulit%2A%20Anda%20sebesar%20~Rp%20350.000~%20siap%20dikirim%21%20Nomor%20resi%3A%20%60JNE-987654321%60
+                - button "📋 Salin" [ref=e125] [cursor=pointer]
+              - link "🚀 Buka Langsung di WhatsApp" [ref=e126] [cursor=pointer]:
+                - /url: https://wa.me/08123456789?text=Halo%20%2ABudi%20Santoso%2A%2C%20pesanan%20%2ASepatu%20Kulit%2A%20Anda%20sebesar%20~Rp%20350.000~%20siap%20dikirim%21%20Nomor%20resi%3A%20%60JNE-987654321%60
+    - generic [ref=e128]:
+      - paragraph [ref=e129]: © 2026 Clevora — Platform Penyiapan Pesan WhatsApp Cerdas & Produktif.
+      - paragraph [ref=e130]: "Prinsip Human-in-the-Loop: Semua pesan ditinjau mandiri sebelum dikirim manual melalui aplikasi WhatsApp resmi."

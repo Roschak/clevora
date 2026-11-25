@@ -38,6 +38,8 @@ public static class DependencyInjection
         services.AddScoped<ITemplateService, TemplateService>();
         services.AddScoped<IAiMessageService, AzureAiMessageService>();
         services.AddScoped<IBlobStorageService, AzureBlobStorageService>();
+        services.AddScoped<IAttachmentService, AttachmentService>();
+        services.AddScoped<ISyncService, SyncService>();
 
         return services;
     }

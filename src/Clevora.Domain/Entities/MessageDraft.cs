@@ -9,6 +9,8 @@ public class MessageDraft
     /// <summary>JSON-serialized dictionary of placeholder values: { "name": "Budi" }</summary>
     public string? PlaceholderValues { get; set; }
     public string? RecipientPhone { get; set; }
+    public long Version { get; set; } = 1;
+    public bool IsDeleted { get; set; }
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
 

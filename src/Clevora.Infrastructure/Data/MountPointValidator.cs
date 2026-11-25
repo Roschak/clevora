@@ -14,6 +14,7 @@ public static class MountPointValidator
     /// </summary>
     public static void Validate(string dbPath)
     {
+        if (string.IsNullOrWhiteSpace(dbPath)) return;
         var dir = Path.GetDirectoryName(Path.GetFullPath(dbPath));
         if (string.IsNullOrEmpty(dir)) return;
 

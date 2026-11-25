@@ -92,6 +92,7 @@ if (!app.Environment.IsDevelopment())
 app.UseHttpsRedirection();
 app.UseSwagger();
 app.UseSwaggerUI(c => c.SwaggerEndpoint("/swagger/v1/swagger.json", "Clevora API v1"));
+app.UseMiddleware<ApiKeyMiddleware>();
 app.UseAuthentication();
 app.UseAuthorization();
 app.UseAntiforgery();
@@ -101,6 +102,8 @@ app.MapAuthEndpoints();
 app.MapCategoryEndpoints();
 app.MapTemplateEndpoints();
 app.MapComposerEndpoints();
+app.MapAttachmentEndpoints();
+app.MapSyncEndpoints();
 
 // ─── Health ───────────────────────────────────────────────────────────────────
 app.MapHealthChecks("/health/live");

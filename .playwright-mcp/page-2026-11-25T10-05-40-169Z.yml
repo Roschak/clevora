@@ -1,0 +1,6 @@
+- generic [ref=f4e3]:
+  - generic [ref=f4e44]:
+    - generic [ref=f4e45]: Select a definition
+    - combobox "Select a definition" [disabled] [ref=f4e46]:
+      - option "Clevora API v1" [selected]
+  - generic [ref=f4e47]: loading

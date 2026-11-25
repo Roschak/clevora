@@ -63,6 +63,7 @@ public class TemplateService(ClevoraDbContext db, ICurrentUserService currentUse
         template.Title = title;
         template.Body = body;
         template.CategoryId = categoryId;
+        template.Version++;
         template.UpdatedAt = DateTime.UtcNow;
         await db.SaveChangesAsync(ct);
         return template;
@@ -73,6 +74,7 @@ public class TemplateService(ClevoraDbContext db, ICurrentUserService currentUse
         var template = await GetByIdAsync(id, ct)
             ?? throw new KeyNotFoundException($"Template {id} not found.");
         template.IsFavorite = !template.IsFavorite;
+        template.Version++;
         template.UpdatedAt = DateTime.UtcNow;
         await db.SaveChangesAsync(ct);
     }
@@ -82,6 +84,7 @@ public class TemplateService(ClevoraDbContext db, ICurrentUserService currentUse
         var template = await GetByIdAsync(id, ct)
             ?? throw new KeyNotFoundException($"Template {id} not found.");
         template.IsArchived = true;
+        template.Version++;
         template.UpdatedAt = DateTime.UtcNow;
         await db.SaveChangesAsync(ct);
     }
@@ -90,7 +93,9 @@ public class TemplateService(ClevoraDbContext db, ICurrentUserService currentUse
     {
         var template = await GetByIdAsync(id, ct)
             ?? throw new KeyNotFoundException($"Template {id} not found.");
-        db.Templates.Remove(template);
+        template.IsDeleted = true;
+        template.Version++;
+        template.UpdatedAt = DateTime.UtcNow;
         await db.SaveChangesAsync(ct);
     }
 }

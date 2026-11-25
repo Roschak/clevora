@@ -1,0 +1,81 @@
+@page "/sync"
+@using Clevora.Mobile.Services
+@inject LocalDatabaseService LocalDb
+@inject MobileSyncOrchestrator SyncOrchestrator
+
+<div class="mobile-sync p-3">
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <h4 class="m-0 fw-bold">🔄 Pusat Sinkronisasi</h4>
+        <span class="badge @(SyncOrchestrator.IsSyncing ? "bg-warning" : "bg-primary")">
+            @(SyncOrchestrator.IsSyncing ? "Syncing..." : "Siap")
+        </span>
+    </div>
+
+    <!-- Status Card -->
+    <div class="card p-3 mb-3 border shadow-sm">
+        <div class="d-flex align-items-center gap-2 mb-2">
+            <span class="fs-4">📡</span>
+            <div>
+                <strong class="d-block small">Status Terakhir:</strong>
+                <span class="text-muted small">@SyncOrchestrator.LastSyncStatus</span>
+            </div>
+        </div>
+
+        <div class="d-flex justify-content-between text-muted small py-1 border-top">
+            <span>Antrean Perubahan Offline:</span>
+            <strong>@LocalDb.GetPendingOutbox().Count item</strong>
+        </div>
+        <div class="d-flex justify-content-between text-muted small py-1">
+            <span>Versi Basis Server:</span>
+            <strong>v@LocalDb.LatestServerVersion</strong>
+        </div>
+
+        <div class="mt-3">
+            <label class="form-label small fw-semibold">Server URL:</label>
+            <input class="form-control form-control-sm mb-2" @bind="serverUrl" placeholder="https://api.clevora.com" />
+            <label class="form-label small fw-semibold">Token / Kunci Akses:</label>
+            <input class="form-control form-control-sm mb-3" @bind="authToken" placeholder="Bearer JWT Token" type="password" />
+
+            <button class="btn btn-success w-100 fw-bold py-2"
+                    disabled="@SyncOrchestrator.IsSyncing"
+                    @onclick="TriggerSync">
+                @if (SyncOrchestrator.IsSyncing)
+                {
+                    <span class="spinner-border spinner-border-sm me-1"></span>
+                    <span>Menghubungi Server...</span>
+                }
+                else
+                {
+                    <span>🚀 Sinkronkan Sekarang</span>
+                }
+            </button>
+        </div>
+    </div>
+
+    <!-- Pending Outbox List -->
+    @if (LocalDb.GetPendingOutbox().Any())
+    {
+        <div class="card p-3 border shadow-sm">
+            <h6 class="fw-bold small mb-2">Daftar Antrean Outbox:</h6>
+            <div class="d-flex flex-column gap-1">
+                @foreach (var o in LocalDb.GetPendingOutbox())
+                {
+                    <div class="p-2 bg-light rounded small d-flex justify-content-between">
+                        <span><strong>@o.Operation</strong>: @o.EntityType #@o.EntityId</span>
+                        <span class="text-muted">@o.CreatedAtUtc.ToString("HH:mm:ss")</span>
+                    </div>
+                }
+            </div>
+        </div>
+    }
+</div>
+
+@code {
+    private string serverUrl = "https://clevora.internal";
+    private string authToken = "dev-offline-token";
+
+    private async Task TriggerSync()
+    {
+        await SyncOrchestrator.SynchronizeAsync(serverUrl, authToken);
+    }
+}
