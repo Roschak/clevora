@@ -1,0 +1,386 @@
+@page "/new-chat"
+@using Clevora.Domain.Entities
+@using Clevora.Mobile.Services
+@inject LocalDatabaseService Db
+@inject NavigationManager Nav
+@inject HttpClient Http
+@inject ChatClientService ChatClient
+
+<div class="wa-newchat-screen">
+    <!-- Header -->
+    <header class="wa-newchat-header">
+        <button class="wa-back-btn" @onclick='() => Nav.NavigateTo("/")' title="Kembali">
+            <svg viewBox="0 0 24 24" width="24" height="24" fill="white">
+                <path d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z"/>
+            </svg>
+        </button>
+        <div class="wa-newchat-header-text">
+            <div class="wa-newchat-title">Pilih kontak</div>
+            <div class="wa-newchat-subtitle">@filteredContacts.Count kontak</div>
+        </div>
+        <div class="wa-newchat-actions">
+            <button class="wa-icon-btn" title="Cari" @onclick="ToggleSearch">
+                <svg viewBox="0 0 24 24" width="22" height="22" fill="white">
+                    <path d="M15.5 14h-.79l-.28-.27A6.471 6.471 0 0 0 16 9.5 6.5 6.5 0 1 0 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14"/>
+                </svg>
+            </button>
+            <button class="wa-icon-btn" title="Lainnya">
+                <svg viewBox="0 0 24 24" width="22" height="22" fill="white">
+                    <path d="M12 8c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2m0 2c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2m0 6c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2"/>
+                </svg>
+            </button>
+        </div>
+    </header>
+
+    @if (isSearching)
+    {
+        <div class="wa-newchat-search-bar">
+            <input type="text" class="wa-newchat-search-input" placeholder="Cari nama atau nomor..." @bind="searchQuery" @bind:event="oninput" autofocus />
+            <button class="wa-search-clear" @onclick="ToggleSearch">✕</button>
+        </div>
+    }
+
+    <!-- Content list -->
+    <main class="wa-newchat-content">
+        <!-- Quick Action Rows -->
+        <div class="wa-action-row" @onclick="CreateNewGroup">
+            <div class="wa-action-circle">👥</div>
+            <div class="wa-action-label">Grup baru</div>
+        </div>
+        <div class="wa-action-row" @onclick="PromptNewContact">
+            <div class="wa-action-circle">👤+</div>
+            <div class="wa-action-label" style="flex:1;">Kontak baru</div>
+            <div style="font-size:1.2rem;color:#8696A0;padding-right:12px;">▦</div>
+        </div>
+        <div class="wa-action-row">
+            <div class="wa-action-circle">🌐</div>
+            <div class="wa-action-label">Komunitas baru</div>
+        </div>
+
+        <div class="wa-contacts-section">Kontak di Clevora WhatsApp</div>
+
+        <!-- Contact List -->
+        @foreach (var contact in filteredContacts)
+        {
+            <div class="wa-contact-row" @onclick="() => StartChat(contact)">
+                <div class="wa-avatar" style="background: @contact.Color">
+                    @contact.Initials
+                </div>
+                <div class="wa-contact-info">
+                    <div class="wa-contact-name">@contact.Name</div>
+                    <div class="wa-contact-status">@contact.Status</div>
+                </div>
+            </div>
+        }
+    </main>
+
+    <!-- Modal Buat Kontak Baru -->
+    @if (showNewContactModal)
+    {
+        <div class="wa-modal-backdrop" @onclick="() => showNewContactModal = false">
+            <div class="wa-modal-card" @onclick:stopPropagation>
+                <div class="wa-modal-header">
+                    <h3>Tambah Kontak Baru</h3>
+                    <button class="wa-modal-close" @onclick="() => showNewContactModal = false">✕</button>
+                </div>
+                <div class="wa-modal-body">
+                    <label class="wa-label">Nama Kontak</label>
+                    <input class="wa-input" @bind="newContactName" placeholder="Contoh: Rahmat Hidayat" />
+
+                    <label class="wa-label" style="margin-top:10px;">Status / Bio</label>
+                    <input class="wa-input" @bind="newContactStatus" placeholder="Contoh: Ada di kantor" />
+
+                    <button class="wa-btn-primary" style="margin-top:14px;width:100%;" @onclick="SaveNewContact">
+                        Simpan &amp; Mulai Chat
+                    </button>
+                </div>
+            </div>
+        </div>
+    }
+
+    <!-- Modal Buat Grup Baru -->
+    @if (showNewGroupModal)
+    {
+        <div class="wa-modal-backdrop" @onclick="() => showNewGroupModal = false">
+            <div class="wa-modal-card" @onclick:stopPropagation style="max-height:85vh;overflow-y:auto;">
+                <div class="wa-modal-header">
+                    <h3>👥 Buat Grup Baru WhatsApp</h3>
+                    <button class="wa-modal-close" @onclick="() => showNewGroupModal = false">✕</button>
+                </div>
+                <div class="wa-modal-body">
+                    <label class="wa-label">Nama Grup</label>
+                    <input class="wa-input" @bind="groupNameInput" placeholder="Contoh: Tim Gravicode Project 🔥" />
+
+                    <label class="wa-label" style="margin-top:12px;">Pilih Anggota Grup</label>
+                    <div style="max-height:180px;overflow-y:auto;border:1px solid #E2E8F0;border-radius:8px;padding:4px;margin-top:4px;">
+                        @foreach (var c in contacts)
+                        {
+                            var isSelected = selectedGroupContactNames.Contains(c.Name);
+                            <div style="display:flex;align-items:center;padding:6px;gap:8px;cursor:pointer;background:@(isSelected ? "#DCFCE7" : "transparent");border-radius:6px;margin-bottom:2px;"
+                                 @onclick="() => ToggleGroupContact(c.Name)">
+                                <input type="checkbox" checked="@isSelected" style="pointer-events:none;" />
+                                <div class="wa-avatar" style="background:@c.Color;width:32px;height:32px;font-size:0.8rem;">@c.Initials</div>
+                                <div style="flex:1;">
+                                    <div style="font-size:0.85rem;font-weight:600;color:#111B21;">@c.Name</div>
+                                    <div style="font-size:0.75rem;color:#667781;">@c.Status</div>
+                                </div>
+                            </div>
+                        }
+                    </div>
+
+                    @if (selectedGroupContactNames.Any())
+                    {
+                        <div style="font-size:0.8rem;color:#008069;margin-top:8px;font-weight:600;">
+                            ✓ @selectedGroupContactNames.Count anggota terpilih
+                        </div>
+                    }
+
+                    <button class="wa-btn-primary" style="margin-top:14px;width:100%;" @onclick="ConfirmCreateGroup" disabled="@(string.IsNullOrWhiteSpace(groupNameInput))">
+                        Buat Grup &amp; Mulai Chat
+                    </button>
+                </div>
+            </div>
+        </div>
+    }
+</div>
+
+<style>
+    .wa-newchat-screen {
+        display: flex;
+        flex-direction: column;
+        height: 100vh;
+        width: 100vw;
+        background: #FFFFFF;
+        overflow: hidden;
+    }
+
+    .wa-newchat-header {
+        background: #008069;
+        color: white;
+        display: flex;
+        align-items: center;
+        padding: 10px 14px;
+        gap: 12px;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.15);
+    }
+    .wa-newchat-header-text {
+        flex: 1;
+        overflow: hidden;
+    }
+    .wa-newchat-title {
+        font-size: 1.05rem;
+        font-weight: 600;
+    }
+    .wa-newchat-subtitle {
+        font-size: 0.75rem;
+        opacity: 0.85;
+    }
+    .wa-newchat-actions {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+    }
+
+    .wa-newchat-search-bar {
+        display: flex;
+        align-items: center;
+        background: #F0F2F5;
+        padding: 8px 14px;
+        border-bottom: 1px solid #E9EDEF;
+    }
+    .wa-newchat-search-input {
+        flex: 1;
+        border: none;
+        outline: none;
+        background: transparent;
+        font-size: 0.95rem;
+        color: #111B21;
+    }
+
+    .wa-newchat-content {
+        flex: 1;
+        overflow-y: auto;
+    }
+
+    .wa-action-row {
+        display: flex;
+        align-items: center;
+        gap: 16px;
+        padding: 12px 16px;
+        cursor: pointer;
+    }
+    .wa-action-row:active {
+        background: #F0F2F5;
+    }
+    .wa-action-circle {
+        width: 44px;
+        height: 44px;
+        border-radius: 50%;
+        background: #00A884;
+        color: white;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1.2rem;
+    }
+    .wa-action-label {
+        font-size: 0.95rem;
+        font-weight: 600;
+        color: #111B21;
+    }
+
+    .wa-contacts-section {
+        font-size: 0.8rem;
+        font-weight: 700;
+        color: #667781;
+        padding: 10px 16px 6px 16px;
+        background: #F0F2F5;
+        text-transform: uppercase;
+        letter-spacing: 0.4px;
+    }
+
+    .wa-contact-row {
+        display: flex;
+        align-items: center;
+        gap: 14px;
+        padding: 12px 16px;
+        cursor: pointer;
+        border-bottom: 1px solid #F0F2F5;
+    }
+    .wa-contact-row:active {
+        background: #F0F2F5;
+    }
+    .wa-contact-info {
+        flex: 1;
+        overflow: hidden;
+    }
+    .wa-contact-name {
+        font-size: 0.98rem;
+        font-weight: 600;
+        color: #111B21;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+    .wa-contact-status {
+        font-size: 0.82rem;
+        color: #667781;
+        margin-top: 2px;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+</style>
+
+@code {
+    private record ContactItem(string Name, string Status, string Initials, string Color);
+
+    private bool isSearching = false;
+    private string searchQuery = "";
+    private bool showNewContactModal = false;
+    private string newContactName = "";
+    private string newContactStatus = "Ada di Clevora WhatsApp";
+
+    private List<ContactItem> contacts = new()
+    {
+        new("Kang Fadhil (Gravicode Studios Lead)", "Software Architect & AI Lead", "KF", "#008069"),
+        new("Iruzzz67 (DevOps & Cloud)", "Automating deployments & Azure 🚀", "IR", "#0284C7"),
+        new("Siti Nurhaliza (UI/UX Designer)", "Designing seamless experiences ✨", "SN", "#E11D48"),
+        new("Budi Santoso (Product Manager)", "Human-in-the-Loop WhatsApp platform", "BS", "#4F46E5"),
+        new("Ahmad Fauzi (Mobile Dev)", ".NET 10 MAUI enthusiast", "AF", "#0D9488"),
+        new("Dewi Lestari (QA Engineer)", "Quality is not an act, it is a habit", "DL", "#D97706")
+    };
+
+    private List<ContactItem> filteredContacts =>
+        string.IsNullOrWhiteSpace(searchQuery)
+            ? contacts
+            : contacts.Where(c => c.Name.Contains(searchQuery, StringComparison.OrdinalIgnoreCase) ||
+                                 c.Status.Contains(searchQuery, StringComparison.OrdinalIgnoreCase)).ToList();
+
+    private void ToggleSearch()
+    {
+        isSearching = !isSearching;
+        if (!isSearching) searchQuery = "";
+    }
+
+    private void StartChat(ContactItem contact)
+    {
+        var conv = Db.CreateOrGetPrivateChat(contact.Name);
+        Nav.NavigateTo($"/chat/{conv.Id}");
+    }
+
+    private bool showNewGroupModal = false;
+    private string groupNameInput = "";
+    private List<string> selectedGroupContactNames = new();
+
+    private void CreateNewGroup()
+    {
+        groupNameInput = "";
+        selectedGroupContactNames.Clear();
+        showNewGroupModal = true;
+    }
+
+    private void ToggleGroupContact(string name)
+    {
+        if (selectedGroupContactNames.Contains(name))
+            selectedGroupContactNames.Remove(name);
+        else
+            selectedGroupContactNames.Add(name);
+    }
+
+    private async Task ConfirmCreateGroup()
+    {
+        if (string.IsNullOrWhiteSpace(groupNameInput)) return;
+
+        var name = groupNameInput.Trim();
+        var membersDesc = selectedGroupContactNames.Any()
+            ? string.Join(", ", selectedGroupContactNames)
+            : "Anda";
+
+        var created = Db.CreateOrGetGroupChat(name, membersDesc);
+
+        Db.AddLocalMessage(created.Id, "system", "Sistem", $"Grup \"{name}\" berhasil dibuat oleh Kang Fadhil (Gravicode Studios). Anggota: {membersDesc}", false, MessageType.System);
+
+        // Sync with server if online
+        try
+        {
+            var serverUrl = Db.GetState("ServerUrl") ?? "http://localhost:5000";
+            var token = Db.GetState("Token");
+            if (!string.IsNullOrEmpty(token))
+            {
+                var req = new { Name = name, MemberIds = new List<string>() };
+                var json = System.Text.Json.JsonSerializer.Serialize(req);
+                var content = new StringContent(json, System.Text.Encoding.UTF8, "application/json");
+                using var request = new HttpRequestMessage(HttpMethod.Post, $"{serverUrl.TrimEnd('/')}/api/v1/chat/conversations/group");
+                request.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", token);
+                request.Content = content;
+                _ = Http.SendAsync(request); // fire & forget sync
+            }
+        }
+        catch { }
+
+        showNewGroupModal = false;
+        Nav.NavigateTo($"/chat/{created.Id}");
+    }
+
+    private void PromptNewContact()
+    {
+        showNewContactModal = true;
+    }
+
+    private void SaveNewContact()
+    {
+        if (string.IsNullOrWhiteSpace(newContactName)) return;
+
+        var contact = new ContactItem(
+            newContactName.Trim(),
+            string.IsNullOrWhiteSpace(newContactStatus) ? "Ada di Clevora" : newContactStatus.Trim(),
+            newContactName[0..1].ToUpper(),
+            "#008069"
+        );
+        contacts.Insert(0, contact);
+        showNewContactModal = false;
+
+        StartChat(contact);
+    }
+}

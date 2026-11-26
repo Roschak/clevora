@@ -1,0 +1,14 @@
+@page "/login"
+
+@code {
+    // Redirect to the Identity login page (static SSR form with cookie auth)
+    [Parameter] public string? ReturnUrl { get; set; }
+
+    protected override void OnInitialized()
+    {
+        var returnUrl = string.IsNullOrEmpty(ReturnUrl) ? "" : $"?ReturnUrl={Uri.EscapeDataString(ReturnUrl)}";
+        Nav.NavigateTo($"/Account/Login{returnUrl}", forceLoad: true);
+    }
+}
+
+@inject NavigationManager Nav

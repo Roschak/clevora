@@ -1,9 +1,4 @@
-using Clevora.Shared.Models;
-
+// Legacy interface — kept as stub. Not used in chat app.
 namespace Clevora.Application.Interfaces;
 
-public interface ISyncService
-{
-    Task<SyncPushResponse> PushAsync(SyncPushRequest request, CancellationToken ct = default);
-    Task<SyncPullResponse> PullAsync(long sinceVersion, string deviceId, CancellationToken ct = default);
-}
+internal static class ISyncServiceStub { }

@@ -1,0 +1,101 @@
+@using Clevora.Application.Interfaces
+@using Clevora.Domain.Entities
+@using Clevora.Infrastructure.Identity
+@using Clevora.Shared.Models
+@using Clevora.Web.Hubs
+@using Microsoft.AspNetCore.Identity
+@using Microsoft.AspNetCore.SignalR
+@inject IChatService ChatService
+@inject IHubContext<ChatHub> HubContext
+@inject ICurrentUserService CurrentUser
+@inject UserManager<ClevoraUser> UserManager
+@implements IAsyncDisposable
+@rendermode InteractiveServer
+
+<div class="msg-input-bar">
+    @if (ReplyTo != null)
+    {
+        <div class="msg-reply-preview">
+            <span class="msg-reply-name">↩ @ReplyTo.SenderName</span>
+            <span class="msg-reply-body">@ReplyTo.Body</span>
+            <button class="msg-reply-cancel" @onclick="CancelReply">✕</button>
+        </div>
+    }
+    <div class="msg-input-row">
+        <textarea class="msg-textarea"
+                  placeholder="Ketik pesan..."
+                  rows="1"
+                  @bind="messageText"
+                  @bind:event="oninput"
+                  @onkeydown="OnKeyDown"></textarea>
+        <button class="msg-send-btn" @onclick="SendMessage" disabled="@(!CanSend)" title="Kirim Pesan">
+            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/>
+            </svg>
+        </button>
+    </div>
+</div>
+
+@code {
+    [Parameter, EditorRequired] public int ConversationId { get; set; }
+    [Parameter] public MessageDto? ReplyTo { get; set; }
+    [Parameter] public EventCallback OnReplyCancelled { get; set; }
+    [Parameter] public EventCallback<MessageDto> OnMessageSent { get; set; }
+
+    private string messageText = "";
+    private bool CanSend => !string.IsNullOrWhiteSpace(messageText);
+
+    private async Task SendMessage()
+    {
+        if (!CanSend) return;
+        var text = messageText.Trim();
+        messageText = "";
+
+        try
+        {
+            var msg = await ChatService.SendMessageAsync(ConversationId, text, MessageType.Text, ReplyTo?.Id);
+            var sender = await UserManager.FindByIdAsync(CurrentUser.UserId);
+            var dto = new MessageDto(
+                msg.Id,
+                msg.ConversationId,
+                msg.SenderId,
+                sender?.DisplayName ?? sender?.Email ?? "Saya",
+                sender?.AvatarUrl,
+                msg.Body,
+                msg.Type,
+                msg.Status,
+                msg.ReplyToId,
+                msg.IsDeleted,
+                msg.SentAt,
+                IsMine: true);
+
+            // Broadcast to all SignalR connected clients (Android APK, other tabs)
+            await HubContext.Clients.Group($"conv-{ConversationId}").SendAsync("ReceiveMessage", dto);
+            ChatHub.BroadcastLocalMessage(dto);
+
+            // Notify parent page
+            await OnMessageSent.InvokeAsync(dto);
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error sending message: {ex.Message}");
+        }
+
+        await OnReplyCancelled.InvokeAsync();
+    }
+
+    private async Task OnKeyDown(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter" && !e.ShiftKey)
+        {
+            await SendMessage();
+        }
+    }
+
+    private void CancelReply() => OnReplyCancelled.InvokeAsync();
+
+    public ValueTask DisposeAsync()
+    {
+        return ValueTask.CompletedTask;
+    }
+}

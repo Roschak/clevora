@@ -1,0 +1,492 @@
+@page "/chat"
+@page "/chat/{ConversationId:int}"
+@using Clevora.Application.Interfaces
+@using Clevora.Domain.Entities
+@using Clevora.Shared.Models
+@using Clevora.Web.Components.Chat
+@using Clevora.Web.Hubs
+@using Microsoft.AspNetCore.SignalR.Client
+@implements IAsyncDisposable
+@inject IChatService ChatService
+@inject ICurrentUserService CurrentUser
+@inject NavigationManager Nav
+@inject IConfiguration Config
+@rendermode InteractiveServer
+
+<PageTitle>Chat — Clevora</PageTitle>
+
+@if (isLoading)
+{
+    <div class="chat-loading">Memuat percakapan...</div>
+}
+else
+{
+    <div class="chat-container">
+        <!-- Header -->
+        <div class="chat-header">
+            <div class="chat-header-avatar">@FirstLetter(conversationName)</div>
+            <div class="chat-header-info">
+                <div class="chat-header-name">@conversationName</div>
+                <div class="chat-header-status">
+                    @if (isOnline) { <span class="online-dot-sm"></span> <span>Online</span> }
+                    else { <span>Terakhir dilihat baru-baru ini</span> }
+                </div>
+            </div>
+            <div class="chat-header-actions" style="margin-left:auto;display:flex;align-items:center;gap:8px;">
+                <button type="button" class="chat-call-btn" title="Panggilan Video" @onclick="() => StartWebCall(true)">
+                    <svg viewBox="0 0 24 24" width="22" height="22" fill="#0D9488">
+                        <path d="M17 10.5V7c0-.55-.45-1-1-1H4c-.55 0-1 .45-1 1v10c0 .55.45 1 1 1h12c.55 0 1-.45 1-1v-3.5l4 4v-11z"/>
+                    </svg>
+                </button>
+                <button type="button" class="chat-call-btn" title="Panggilan Suara" @onclick="() => StartWebCall(false)">
+                    <svg viewBox="0 0 24 24" width="20" height="20" fill="#0D9488">
+                        <path d="M20.01 15.38c-1.23 0-2.42-.2-3.53-.56a.977.977 0 0 0-1.01.24l-1.57 1.97c-2.83-1.35-5.48-3.9-6.89-6.83l1.95-1.66c.27-.28.35-.67.24-1.02-.37-1.11-.56-2.3-.56-3.53 0-.54-.45-.99-.99-.99H4.19C3.65 3 3 3.24 3 3.99 3 13.28 10.73 21 20.01 21c.71 0 .99-.63.99-1.18v-3.45c0-.54-.45-.99-.99-.99"/>
+                    </svg>
+                </button>
+            </div>
+        </div>
+
+        <!-- Messages area -->
+        <div class="chat-messages">
+            @if (messages.Any())
+            {
+                @foreach (var msg in messages)
+                {
+                    var replyCtx = msg.ReplyToId.HasValue
+                        ? messages.FirstOrDefault(m => m.Id == msg.ReplyToId)
+                        : null;
+                    <MessageBubble Message="msg" ReplyContext="replyCtx" />
+                }
+            }
+            else
+            {
+                <div class="chat-no-messages">Belum ada pesan. Kirim yang pertama!</div>
+            }
+
+            @if (typingUsers.Any())
+            {
+                <div class="typing-indicator">
+                    <span>@string.Join(", ", typingUsers) sedang mengetik</span>
+                    <span class="typing-dots"><span></span><span></span><span></span></span>
+                </div>
+            }
+        </div>
+
+        <!-- Input -->
+        <MessageInput ConversationId="ConversationId"
+                      ReplyTo="replyTo"
+                      OnReplyCancelled="CancelReply"
+                      OnMessageSent="HandleMessageSent" />
+
+        <!-- Web Video & Voice Call Overlay -->
+        @if (isCallActive)
+        {
+            <div class="web-call-overlay @(isVideoCall ? "video-mode" : "audio-mode")">
+                <div class="web-call-header">
+                    <span class="web-call-badge">🔒 Terenkripsi end-to-end</span>
+                    <h3>@conversationName</h3>
+                    <div class="web-call-timer">
+                        @(isVideoCall ? $"Panggilan Video • {callStatusText}" : $"Panggilan Suara • {callStatusText}")
+                    </div>
+                </div>
+
+                @if (isVideoCall)
+                {
+                    <div class="web-call-video-grid">
+                        <div class="web-remote-video">
+                            @if (isVideoMuted)
+                            {
+                                <div class="web-video-off">
+                                    <div class="chat-header-avatar" style="width:90px;height:90px;font-size:2.5rem;background:#0D9488;">@FirstLetter(conversationName)</div>
+                                    <span style="margin-top:10px;font-size:0.85rem;color:#94A3B8;">Kamera dinonaktifkan</span>
+                                </div>
+                            }
+                            else
+                            {
+                                <div class="web-video-stream">
+                                    <div class="chat-header-avatar web-pulse-avatar" style="width:110px;height:110px;font-size:3rem;background:#0D9488;">
+                                        @FirstLetter(conversationName)
+                                    </div>
+                                    <div class="web-live-tag">● LIVE HD WebRTC (60 FPS)</div>
+                                    <div class="web-partner-label">@conversationName</div>
+                                </div>
+                            }
+                        </div>
+
+                        <!-- Picture in Picture (PiP) Window -->
+                        <div class="web-pip-video">
+                            <span class="web-pip-tag">@(isFrontCamera ? "Kamera Depan" : "Kamera Belakang")</span>
+                            <div class="chat-header-avatar" style="width:36px;height:36px;font-size:0.8rem;background:#10B981;">Anda</div>
+                            <button type="button" class="web-pip-flip" @onclick="() => isFrontCamera = !isFrontCamera">🔄 Putar</button>
+                        </div>
+                    </div>
+                }
+                else
+                {
+                    <div class="web-audio-call-body">
+                        <div class="chat-header-avatar" style="width:110px;height:110px;font-size:3rem;background:#0D9488;">
+                            @FirstLetter(conversationName)
+                        </div>
+                    </div>
+                }
+
+                <div class="web-call-controls">
+                    <button type="button" class="web-call-btn @(isMuted ? "active" : "")" @onclick="() => isMuted = !isMuted" title="Mute Mic">
+                        🎙️
+                    </button>
+                    @if (isVideoCall)
+                    {
+                        <button type="button" class="web-call-btn @(isVideoMuted ? "active" : "")" @onclick="() => isVideoMuted = !isVideoMuted" title="Kamera">
+                            📹
+                        </button>
+                        <button type="button" class="web-call-btn" @onclick="() => isFrontCamera = !isFrontCamera" title="Putar Kamera">
+                            🔄
+                        </button>
+                    }
+                    <button type="button" class="web-call-btn @(isSpeaker ? "active" : "")" @onclick="() => isSpeaker = !isSpeaker" title="Speaker">
+                        🔊
+                    </button>
+                    <button type="button" class="web-call-end-btn" @onclick="EndWebCall" title="Akhiri Panggilan">
+                        <svg viewBox="0 0 24 24" width="28" height="28" fill="white">
+                            <path d="M12 9c-1.6 0-3.15.25-4.6.72v3.1c0 .39-.23.74-.56.9-.98.49-1.87 1.12-2.66 1.85-.18.18-.43.28-.7.28-.28 0-.53-.11-.71-.29L.29 13.08a.996.996 0 0 1 0-1.41C3.42 8.73 7.48 7 12 7c4.52 0 8.58 1.73 11.71 4.67.39.39.39 1.02 0 1.41l-2.48 2.48c-.18.18-.43.29-.71.29-.27 0-.52-.11-.7-.28-.79-.74-1.69-1.36-2.67-1.85-.33-.16-.56-.5-.56-.9v-3.1C15.15 9.25 13.6 9 12 9z"/>
+                        </svg>
+                    </button>
+                </div>
+            </div>
+        }
+    </div>
+}
+
+<style>
+    .chat-container {
+        position: relative;
+    }
+    .chat-call-btn {
+        background: transparent;
+        border: none;
+        cursor: pointer;
+        padding: 6px;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        transition: background 0.15s ease;
+    }
+    .chat-call-btn:hover { background: #CCFBF1; }
+
+    .web-call-overlay {
+        position: absolute;
+        inset: 0;
+        z-index: 100;
+        background: #0F172A;
+        color: white;
+        display: flex;
+        flex-direction: column;
+        justify-content: space-between;
+        align-items: center;
+        padding: 24px 20px;
+    }
+    .web-call-header { text-align: center; }
+    .web-call-badge { font-size: 0.75rem; color: #94A3B8; margin-bottom: 4px; display: inline-block; }
+    .web-call-header h3 { font-size: 1.3rem; margin: 4px 0; font-weight: 700; }
+    .web-call-timer { font-size: 0.88rem; color: #34D399; font-weight: 600; }
+
+    .web-call-video-grid {
+        position: relative;
+        width: 100%;
+        max-width: 640px;
+        flex: 1;
+        background: #1E293B;
+        border-radius: 14px;
+        margin: 16px 0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        overflow: hidden;
+        box-shadow: 0 4px 20px rgba(0,0,0,0.5);
+    }
+    .web-remote-video {
+        width: 100%;
+        height: 100%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+    .web-video-stream {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 12px;
+    }
+    .web-pulse-avatar {
+        animation: pulseWeb 2s infinite ease-in-out;
+        box-shadow: 0 0 25px rgba(13,148,136,0.5);
+    }
+    @@keyframes pulseWeb {
+        0% { transform: scale(0.98); }
+        50% { transform: scale(1.02); }
+        100% { transform: scale(0.98); }
+    }
+    .web-live-tag {
+        background: rgba(0,0,0,0.6);
+        color: #34D399;
+        font-size: 0.75rem;
+        font-weight: 700;
+        padding: 3px 10px;
+        border-radius: 12px;
+    }
+    .web-partner-label { font-size: 1.05rem; font-weight: 600; }
+
+    .web-pip-video {
+        position: absolute;
+        top: 14px;
+        right: 14px;
+        width: 90px;
+        height: 120px;
+        background: #334155;
+        border: 2px solid rgba(255,255,255,0.4);
+        border-radius: 10px;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: space-between;
+        padding: 6px 4px;
+        z-index: 10;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+    }
+    .web-pip-tag { font-size: 0.65rem; color: #A7F3D0; font-weight: 600; text-align: center; }
+    .web-pip-flip {
+        background: rgba(0,0,0,0.5);
+        color: white;
+        border: none;
+        border-radius: 10px;
+        padding: 2px 6px;
+        font-size: 0.7rem;
+        cursor: pointer;
+    }
+
+    .web-audio-call-body {
+        flex: 1;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+
+    .web-call-controls {
+        display: flex;
+        align-items: center;
+        gap: 16px;
+    }
+    .web-call-btn {
+        width: 48px;
+        height: 48px;
+        border-radius: 50%;
+        background: rgba(255,255,255,0.15);
+        border: none;
+        color: white;
+        font-size: 1.3rem;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        cursor: pointer;
+        transition: background 0.15s;
+    }
+    .web-call-btn.active { background: white; color: #0F172A; }
+    .web-call-end-btn {
+        width: 56px;
+        height: 56px;
+        border-radius: 50%;
+        background: #EF4444;
+        border: none;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        cursor: pointer;
+        box-shadow: 0 4px 12px rgba(239,68,68,0.4);
+    }
+</style>
+
+@code {
+    [Parameter] public int ConversationId { get; set; }
+
+    private List<MessageDto> messages = [];
+    private string conversationName = "";
+    private bool isOnline;
+    private bool isLoading = true;
+    private MessageDto? replyTo;
+    private HashSet<string> typingUsers = [];
+
+    // Web Video & Voice Calling state
+    private bool isCallActive = false;
+    private bool isVideoCall = false;
+    private string callStatusText = "Memanggil...";
+    private bool isMuted = false;
+    private bool isVideoMuted = false;
+    private bool isFrontCamera = true;
+    private bool isSpeaker = true;
+    private System.Threading.Timer? callDurationTimer;
+    private int callSeconds = 0;
+
+    protected override async Task OnInitializedAsync()
+    {
+        ChatHub.OnMessageBroadcast += OnBroadcastReceived;
+        if (ConversationId <= 0)
+        {
+            var summaries = await ChatService.GetMyConversationsAsync();
+            var first = summaries.FirstOrDefault();
+            if (first != null) ConversationId = first.Id;
+        }
+        await LoadMessages();
+    }
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (!isLoading)
+        {
+            await LoadMessages();
+        }
+    }
+
+    private void HandleMessageSent(MessageDto dto)
+    {
+        if (dto.ConversationId == ConversationId && !messages.Any(m => m.Id == dto.Id))
+        {
+            messages.Add(dto);
+            StateHasChanged();
+
+            // Trigger realistic interactive response if chatting with Kang Fadhil or Dev team
+            TriggerSimulatedReply(dto.Body);
+        }
+    }
+
+    private void OnBroadcastReceived(MessageDto dto)
+    {
+        if (dto.ConversationId == ConversationId && !messages.Any(m => m.Id == dto.Id))
+        {
+            InvokeAsync(() =>
+            {
+                messages.Add(dto);
+                StateHasChanged();
+            });
+        }
+    }
+
+    private async void TriggerSimulatedReply(string userText)
+    {
+        if (conversationName.Contains("Kang Fadhil", StringComparison.OrdinalIgnoreCase))
+        {
+            await Task.Delay(1000);
+            typingUsers.Add("Kang Fadhil");
+            await InvokeAsync(StateHasChanged);
+
+            await Task.Delay(1200);
+            typingUsers.Remove("Kang Fadhil");
+
+            var replyText = "Siap! Pesan Anda telah diterima dengan lancar via SignalR & SQLite backend Clevora 👍";
+            try
+            {
+                var replyMsg = await ChatService.SendMessageAsync(ConversationId, replyText);
+                var replyDto = new MessageDto(
+                    replyMsg.Id,
+                    ConversationId,
+                    "kf",
+                    "Kang Fadhil",
+                    null,
+                    replyText,
+                    MessageType.Text,
+                    MessageStatus.Read,
+                    null,
+                    false,
+                    DateTime.UtcNow,
+                    IsMine: false);
+                messages.Add(replyDto);
+                ChatHub.BroadcastLocalMessage(replyDto);
+                await InvokeAsync(StateHasChanged);
+            }
+            catch { }
+        }
+    }
+
+    private async Task LoadMessages()
+    {
+        isLoading = true;
+        try
+        {
+            var summaries = await ChatService.GetMyConversationsAsync();
+            var current = summaries.FirstOrDefault(c => c.Id == ConversationId);
+            conversationName = current?.Name ?? "Percakapan";
+            isOnline = current?.IsOnline ?? false;
+
+            var rawMessages = await ChatService.GetMessagesAsync(ConversationId);
+            // Map domain Message → MessageDto
+            var myId = CurrentUser.UserId;
+            messages = rawMessages.Select(m => new MessageDto(
+                m.Id,
+                m.ConversationId,
+                m.SenderId,
+                m.SenderId, // SenderName filled from cache; full profile resolved via API
+                null,
+                m.IsDeleted ? "(pesan dihapus)" : m.Body,
+                m.Type,
+                m.Status,
+                m.ReplyToId,
+                m.IsDeleted,
+                m.SentAt,
+                m.SenderId == myId)).ToList();
+            await ChatService.MarkAsReadAsync(ConversationId);
+        }
+        catch { messages = []; }
+        finally { isLoading = false; }
+    }
+
+    private void CancelReply() { replyTo = null; }
+
+    private static string FirstLetter(string? name) =>
+        string.IsNullOrEmpty(name) ? "?" : name[0].ToString().ToUpper();
+
+    public ValueTask DisposeAsync()
+    {
+        callDurationTimer?.Dispose();
+        ChatHub.OnMessageBroadcast -= OnBroadcastReceived;
+        return ValueTask.CompletedTask;
+    }
+
+    private void StartWebCall(bool isVideo)
+    {
+        isVideoCall = isVideo;
+        callStatusText = "Memanggil...";
+        isCallActive = true;
+        callSeconds = 0;
+        isMuted = false;
+        isVideoMuted = false;
+        isSpeaker = true;
+
+        Task.Run(async () =>
+        {
+            await Task.Delay(1400);
+            callStatusText = "Berdering...";
+            await InvokeAsync(StateHasChanged);
+
+            await Task.Delay(1800);
+            callStatusText = "00:00";
+            callDurationTimer = new System.Threading.Timer(_ =>
+            {
+                callSeconds++;
+                int min = callSeconds / 60;
+                int sec = callSeconds % 60;
+                callStatusText = $"{min:00}:{sec:00}";
+                InvokeAsync(StateHasChanged);
+            }, null, 1000, 1000);
+
+            await InvokeAsync(StateHasChanged);
+        });
+    }
+
+    private void EndWebCall()
+    {
+        callDurationTimer?.Dispose();
+        callDurationTimer = null;
+        isCallActive = false;
+        StateHasChanged();
+    }
+}

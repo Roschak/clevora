@@ -1,9 +1,3 @@
-using Microsoft.AspNetCore.Identity;
-
-namespace Clevora.Web.Data;
-
-// Add profile data for application users by adding properties to the ApplicationUser class
-public class ApplicationUser : IdentityUser
-{
-}
-
+// ApplicationUser is a type alias for ClevoraUser so that scaffolded Identity UI
+// pages use ClevoraUser directly.
+global using ApplicationUser = Clevora.Infrastructure.Identity.ClevoraUser;

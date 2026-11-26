@@ -1,0 +1,42 @@
+@using Clevora.Shared.Models
+@using Clevora.Domain.Entities
+
+<div class="bubble-wrap @(Message.IsMine ? "bubble-wrap--mine" : "bubble-wrap--theirs")">
+    @if (!Message.IsMine)
+    {
+        <div class="bubble-sender">@Message.SenderName</div>
+    }
+    @if (Message.ReplyToId.HasValue && ReplyContext != null)
+    {
+        <div class="bubble-reply">
+            <span class="bubble-reply-name">@ReplyContext.SenderName</span>
+            <span class="bubble-reply-body">@ReplyContext.Body</span>
+        </div>
+    }
+    <div class="bubble @(Message.IsMine ? "bubble--mine" : "bubble--theirs") @(Message.IsDeleted ? "bubble--deleted" : "")">
+        @if (Message.IsDeleted)
+        {
+            <em class="bubble-deleted-text">🚫 Pesan ini telah dihapus</em>
+        }
+        else
+        {
+            <span class="bubble-body">@Message.Body</span>
+        }
+        <div class="bubble-meta">
+            <span class="bubble-time">@Message.SentAt.ToLocalTime().ToString("HH:mm")</span>
+            @if (Message.IsMine)
+            {
+                <span class="bubble-status">
+                    @if (Message.Status == MessageStatus.Sent) { <text>✓</text> }
+                    else if (Message.Status == MessageStatus.Delivered) { <text>✓✓</text> }
+                    else if (Message.Status == MessageStatus.Read) { <span class="status-read">✓✓</span> }
+                </span>
+            }
+        </div>
+    </div>
+</div>
+
+@code {
+    [Parameter, EditorRequired] public MessageDto Message { get; set; } = null!;
+    [Parameter] public MessageDto? ReplyContext { get; set; }
+}

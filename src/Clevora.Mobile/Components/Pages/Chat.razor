@@ -1,0 +1,1052 @@
+@page "/chat"
+@page "/chat/{ConversationId:int}"
+@using Clevora.Domain.Entities
+@using Clevora.Mobile.Services
+@using Clevora.Shared.Models
+@using Microsoft.AspNetCore.SignalR.Client
+@implements IAsyncDisposable
+@inject LocalDatabaseService Db
+@inject ChatClientService ChatClient
+@inject NavigationManager Nav
+
+<div class="wa-chat-screen">
+    <!-- WhatsApp Chat Top Bar -->
+    <header class="wa-chat-header">
+        <button class="wa-back-btn" @onclick="GoBack" title="Kembali">
+            <svg viewBox="0 0 24 24" width="24" height="24" fill="white">
+                <path d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z"/>
+            </svg>
+        </button>
+
+        <div class="wa-chat-header-user" @onclick="ToggleProfileInfo">
+            <div class="wa-header-avatar" style="background: @avatarBg">
+                @initials
+            </div>
+            <div class="wa-header-meta">
+                <div class="wa-header-title">@conversationTitle</div>
+                <div class="wa-header-subtitle">
+                    @if (isPartnerTyping)
+                    {
+                        <span class="wa-typing-text">mengetik...</span>
+                    }
+                    else if (isOnline)
+                    {
+                        <span>online</span>
+                    }
+                    else
+                    {
+                        <span>terakhir dilihat hari ini pukul @lastSeenTime</span>
+                    }
+                </div>
+            </div>
+        </div>
+
+        <div class="wa-chat-header-actions">
+            <button class="wa-icon-btn" title="Panggilan video" @onclick='() => StartCall(isVideo: true)'>
+                <svg viewBox="0 0 24 24" width="22" height="22" fill="white">
+                    <path d="M17 10.5V7c0-.55-.45-1-1-1H4c-.55 0-1 .45-1 1v10c0 .55.45 1 1 1h12c.55 0 1-.45 1-1v-3.5l4 4v-11z"/>
+                </svg>
+            </button>
+            <button class="wa-icon-btn" title="Panggilan suara" @onclick='() => StartCall(isVideo: false)'>
+                <svg viewBox="0 0 24 24" width="20" height="20" fill="white">
+                    <path d="M20.01 15.38c-1.23 0-2.42-.2-3.53-.56a.977.977 0 0 0-1.01.24l-1.57 1.97c-2.83-1.35-5.48-3.9-6.89-6.83l1.95-1.66c.27-.28.35-.67.24-1.02-.37-1.11-.56-2.3-.56-3.53 0-.54-.45-.99-.99-.99H4.19C3.65 3 3 3.24 3 3.99 3 13.28 10.73 21 20.01 21c.71 0 .99-.63.99-1.18v-3.45c0-.54-.45-.99-.99-.99"/>
+                </svg>
+            </button>
+            <button class="wa-icon-btn" title="Menu" @onclick="ToggleChatMenu">
+                <svg viewBox="0 0 24 24" width="22" height="22" fill="white">
+                    <path d="M12 8c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2m0 2c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2m0 6c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2"/>
+                </svg>
+            </button>
+        </div>
+    </header>
+
+    <!-- Chat Options Menu -->
+    @if (showChatMenu)
+    {
+        <div class="wa-menu-backdrop" @onclick="ToggleChatMenu"></div>
+        <div class="wa-chat-menu">
+            <div class="wa-chat-menu-item" @onclick='() => AlertAction("Lihat Kontak")'>Lihat kontak</div>
+            <div class="wa-chat-menu-item" @onclick='() => AlertAction("Media, tautan, dan dok")'>Media dan tautan</div>
+            <div class="wa-chat-menu-item" @onclick='() => AlertAction("Cari di chat")'>Cari</div>
+            <div class="wa-chat-menu-item" @onclick='() => AlertAction("Bisukan notifikasi")'>Bisukan notifikasi</div>
+            <div class="wa-chat-menu-item" @onclick='() => { ToggleChatMenu(); Nav.NavigateTo("/settings"); }'>Setelan</div>
+            <div class="wa-chat-menu-item" @onclick="ClearChat">Bersihkan chat</div>
+        </div>
+    }
+
+    <!-- Chat Messages Stream -->
+    <main class="wa-messages-container" id="chat-messages-container">
+        <!-- Encryption Notice -->
+        <div class="wa-encryption-chip">
+            <svg viewBox="0 0 24 24" width="13" height="13" fill="#54656F" style="margin-right:4px;">
+                <path d="M18 8h-1V6c0-2.76-2.24-5-5-5S7 3.24 7 6v2H6c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V10c0-1.1-.9-2-2-2m-6 9c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2m3.1-9H8.9V6c0-1.71 1.39-3.1 3.1-3.1 1.71 0 3.1 1.39 3.1 3.1z"/>
+            </svg>
+            Pesan dan panggilan dienkripsi secara end-to-end. Tidak seorang pun di luar chat ini yang dapat membaca atau mendengarkannya.
+        </div>
+
+        <!-- Date separator -->
+        <div class="wa-date-chip">HARI INI</div>
+
+        @foreach (var msg in messages)
+        {
+            <div class="wa-bubble @(msg.IsMine ? "wa-bubble-mine" : "wa-bubble-theirs")">
+                @if (!msg.IsMine && isGroup)
+                {
+                    <div class="wa-bubble-sender">@msg.SenderName</div>
+                }
+
+                <div class="wa-bubble-text">
+                    @((MarkupString)FormatMessage(msg.Body))
+                </div>
+
+                <div class="wa-bubble-meta">
+                    <span class="wa-bubble-time">@msg.SentAt.ToLocalTime().ToString("HH:mm")</span>
+                    @if (msg.IsMine)
+                    {
+                        <span class="wa-bubble-tick @(msg.Status == (int)MessageStatus.Read ? "read" : "")">✓✓</span>
+                    }
+                </div>
+            </div>
+        }
+
+        @if (isPartnerTyping)
+        {
+            <div class="wa-bubble wa-bubble-theirs wa-typing-bubble">
+                <span class="dot"></span>
+                <span class="dot"></span>
+                <span class="dot"></span>
+            </div>
+        }
+    </main>
+
+    <!-- Bottom Input Area -->
+    <footer class="wa-input-container">
+        <div class="wa-input-pill">
+            <button class="wa-input-icon-btn" title="Emoji" @onclick='() => InsertEmoji("😊")'>
+                <svg viewBox="0 0 24 24" width="24" height="24" fill="#8696A0">
+                    <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2m0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8m3.5-9c.83 0 1.5-.67 1.5-1.5S16.33 8 15.5 8 14 8.67 14 9.5s.67 1.5 1.5 1.5m-7 0c.83 0 1.5-.67 1.5-1.5S9.33 8 8.5 8 7 8.67 7 9.5 7.67 11 8.5 11m3.5 6.5c2.33 0 4.31-1.46 5.11-3.5H6.89c.8 2.04 2.78 3.5 5.11 3.5"/>
+                </svg>
+            </button>
+
+            <textarea class="wa-input-box" 
+                      placeholder="Pesan" 
+                      rows="1" 
+                      @bind="inputMessage" 
+                      @bind:event="oninput" 
+                      @onkeydown="HandleKeyDown"></textarea>
+
+            <button class="wa-input-icon-btn" title="Lampirkan berkas" @onclick="ToggleAttachmentMenu">
+                <svg viewBox="0 0 24 24" width="22" height="22" fill="#8696A0">
+                    <path d="M16.5 6v11.5c0 2.21-1.79 4-4 4s-4-1.79-4-4V5c0-1.38 1.12-2.5 2.5-2.5s2.5 1.12 2.5 2.5v10.5c0 .55-.45 1-1 1s-1-.45-1-1V6H10v9.5c0 1.38 1.12 2.5 2.5 2.5s2.5-1.12 2.5-2.5V5c0-2.21-1.79-4-4-4S7 2.79 7 5v12.5c0 3.04 2.46 5.5 5.5 5.5s5.5-2.46 5.5-5.5V6z"/>
+                </svg>
+            </button>
+
+            @if (string.IsNullOrWhiteSpace(inputMessage))
+            {
+                <button class="wa-input-icon-btn" title="Kamera" @onclick='() => AlertAction("Kamera dibuka...")'>
+                    <svg viewBox="0 0 24 24" width="22" height="22" fill="#8696A0">
+                        <path d="M12 9c-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34 3-3-1.34-3-3-3m7-4h-3.17L14.4 3.14C14.03 2.76 13.53 2.5 13 2.5h-2c-.53 0-1.03.26-1.4.64L8.17 5H5c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2m-7 13c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5"/>
+                    </svg>
+                </button>
+            }
+        </div>
+
+        <!-- Action / Send Button -->
+        <button class="wa-action-btn" @onclick="SendMessage" title="@(string.IsNullOrWhiteSpace(inputMessage) ? "Rekam pesan suara" : "Kirim")">
+            @if (string.IsNullOrWhiteSpace(inputMessage))
+            {
+                <svg viewBox="0 0 24 24" width="22" height="22" fill="white">
+                    <path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3m5.91-3c-.49 0-.9.36-.98.85C16.52 14.2 14.47 16 12 16s-4.52-1.8-4.93-4.15c-.08-.49-.49-.85-.98-.85-.61 0-1.09.54-1 1.14.49 3 2.89 5.35 5.91 5.78V20c0 .55.45 1 1 1s1-.45 1-1v-2.08c3.02-.43 5.42-2.78 5.91-5.78.1-.6-.38-1.14-1-1.14"/>
+                </svg>
+            }
+            else
+            {
+                <svg viewBox="0 0 24 24" width="20" height="20" fill="white" style="transform: rotate(45deg); margin-left:-2px; margin-top:1px;">
+                    <path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/>
+                </svg>
+            }
+        </button>
+    </footer>
+
+    <!-- Attachment Popup -->
+    @if (showAttachmentMenu)
+    {
+        <div class="wa-menu-backdrop" @onclick="ToggleAttachmentMenu"></div>
+        <div class="wa-attachment-sheet">
+            <div class="wa-attach-item" @onclick='() => InsertAttachment("Dokumen.pdf")'>
+                <div class="wa-attach-circle" style="background:#5157AE">📄</div>
+                <span>Dokumen</span>
+            </div>
+            <div class="wa-attach-item" @onclick='() => InsertAttachment("Foto_Kamera.jpg")'>
+                <div class="wa-attach-circle" style="background:#EC407A">📷</div>
+                <span>Kamera</span>
+            </div>
+            <div class="wa-attach-item" @onclick='() => InsertAttachment("Galeri_Gambar.png")'>
+                <div class="wa-attach-circle" style="background:#BF59CF">🖼️</div>
+                <span>Galeri</span>
+            </div>
+            <div class="wa-attach-item" @onclick='() => InsertAttachment("Audio_Pesan.mp3")'>
+                <div class="wa-attach-circle" style="background:#FF6F00">🎧</div>
+                <span>Audio</span>
+            </div>
+            <div class="wa-attach-item" @onclick='() => InsertAttachment("Lokasi_Kantor.map")'>
+                <div class="wa-attach-circle" style="background:#0F9D58">📍</div>
+                <span>Lokasi</span>
+            </div>
+            <div class="wa-attach-item" @onclick='() => InsertAttachment("Kontak_Partner.vcf")'>
+                <div class="wa-attach-circle" style="background:#0288D1">👤</div>
+                <span>Kontak</span>
+            </div>
+        </div>
+    }
+
+    <!-- ════════════════════════════════════════════════════════════════════════ -->
+    <!-- INTERACTIVE WHATSAPP CALL SCREEN (VIDEO & VOICE) -->
+    <!-- ════════════════════════════════════════════════════════════════════════ -->
+    @if (isCallActive)
+    {
+        <div class="wa-call-screen @(isVideoCall ? "video-mode" : "audio-mode")">
+            <div class="wa-call-screen-header">
+                <div class="wa-call-encryption">🔒 Terenkripsi end-to-end</div>
+                <div class="wa-call-contact-name">@conversationTitle</div>
+                <div class="wa-call-status-label">
+                    @(isVideoCall ? $"Panggilan Video • {activeCallStatus}" : $"Panggilan Suara • {activeCallStatus}")
+                </div>
+            </div>
+
+            @if (isVideoCall)
+            {
+                <!-- Remote Video Stream Simulation -->
+                <div class="wa-video-call-remote">
+                    <div class="wa-video-feed-simulation">
+                        @if (isVideoMuted)
+                        {
+                            <div class="wa-video-camera-off">
+                                <div class="wa-avatar" style="width:110px;height:110px;font-size:2.8rem;background:@avatarBg">
+                                    @initials
+                                </div>
+                                <div style="margin-top:12px;font-size:0.85rem;color:#8696A0;">Kamera dinonaktifkan</div>
+                            </div>
+                        }
+                        else
+                        {
+                            <div class="wa-simulated-webcam">
+                                <div class="wa-avatar wa-avatar-video-pulse" style="width:120px;height:120px;font-size:3rem;background:@avatarBg">
+                                    @initials
+                                </div>
+                                <div class="wa-video-live-badge">● LIVE HD (60 FPS)</div>
+                                <div class="wa-video-partner-name">@conversationTitle</div>
+                            </div>
+                        }
+                    </div>
+
+                    <!-- Local Camera Picture-in-Picture (PiP) Window -->
+                    <div class="wa-pip-window">
+                        <div class="wa-pip-camera-preview">
+                            <span class="wa-pip-label">@(isFrontCamera ? "Kamera Depan" : "Kamera Belakang")</span>
+                            <div class="wa-pip-avatar">Anda</div>
+                        </div>
+                        <button class="wa-pip-flip-btn" @onclick="ToggleFlipCamera" title="Putar Kamera">
+                            🔄
+                        </button>
+                    </div>
+                </div>
+            }
+            else
+            {
+                <div class="wa-call-avatar-center">
+                    <div class="wa-avatar" style="width:120px;height:120px;font-size:2.8rem;background:@avatarBg">
+                        @initials
+                    </div>
+                </div>
+            }
+
+            <div class="wa-call-controls">
+                @if (isVideoCall)
+                {
+                    <button class="wa-call-round-btn" @onclick="ToggleFlipCamera" title="Putar Kamera">
+                        🔄
+                    </button>
+                }
+                <button class="wa-call-round-btn @(isSpeakerOn ? "active" : "")" @onclick="() => isSpeakerOn = !isSpeakerOn" title="Speaker">
+                    🔊
+                </button>
+                <button class="wa-call-round-btn @(isVideoMuted ? "active" : "")" @onclick="() => isVideoMuted = !isVideoMuted" title="Kamera">
+                    📹
+                </button>
+                <button class="wa-call-round-btn @(isMicMuted ? "active" : "")" @onclick="() => isMicMuted = !isMicMuted" title="Mute Mic">
+                    🎙️
+                </button>
+                <button class="wa-call-end-btn" @onclick="EndCall" title="Akhiri Panggilan">
+                    <svg viewBox="0 0 24 24" width="30" height="30" fill="white">
+                        <path d="M12 9c-1.6 0-3.15.25-4.6.72v3.1c0 .39-.23.74-.56.9-.98.49-1.87 1.12-2.66 1.85-.18.18-.43.28-.7.28-.28 0-.53-.11-.71-.29L.29 13.08a.996.996 0 0 1 0-1.41C3.42 8.73 7.48 7 12 7c4.52 0 8.58 1.73 11.71 4.67.39.39.39 1.02 0 1.41l-2.48 2.48c-.18.18-.43.29-.71.29-.27 0-.52-.11-.7-.28-.79-.74-1.69-1.36-2.67-1.85-.33-.16-.56-.5-.56-.9v-3.1C15.15 9.25 13.6 9 12 9z"/>
+                    </svg>
+                </button>
+            </div>
+        </div>
+    }
+</div>
+
+<style>
+    .wa-chat-screen {
+        display: flex;
+        flex-direction: column;
+        height: 100vh;
+        width: 100vw;
+        background-color: #EFEAE2;
+        background-image: radial-gradient(#D5CEB8 1px, transparent 1px);
+        background-size: 20px 20px;
+        overflow: hidden;
+        position: relative;
+    }
+
+    /* Top Bar */
+    .wa-chat-header {
+        background: #008069;
+        color: #FFFFFF;
+        display: flex;
+        align-items: center;
+        padding: 8px 12px;
+        gap: 8px;
+        z-index: 20;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+    }
+    .wa-back-btn {
+        background: none;
+        border: none;
+        color: white;
+        cursor: pointer;
+        padding: 4px;
+        display: flex;
+        align-items: center;
+    }
+    .wa-chat-header-user {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        flex: 1;
+        overflow: hidden;
+        cursor: pointer;
+    }
+    .wa-header-avatar {
+        width: 38px;
+        height: 38px;
+        border-radius: 50%;
+        color: white;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-weight: 700;
+        font-size: 0.95rem;
+        flex-shrink: 0;
+    }
+    .wa-header-meta {
+        overflow: hidden;
+    }
+    .wa-header-title {
+        font-size: 1rem;
+        font-weight: 600;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+    .wa-header-subtitle {
+        font-size: 0.75rem;
+        opacity: 0.85;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+    .wa-typing-text {
+        color: #A7F3D0;
+        font-style: italic;
+        font-weight: 600;
+    }
+    .wa-chat-header-actions {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+    }
+
+    /* Chat Menu */
+    .wa-chat-menu {
+        position: absolute;
+        top: 52px;
+        right: 12px;
+        background: #FFFFFF;
+        border-radius: 6px;
+        box-shadow: 0 4px 14px rgba(0,0,0,0.2);
+        z-index: 60;
+        min-width: 180px;
+        padding: 6px 0;
+    }
+    .wa-chat-menu-item {
+        padding: 12px 18px;
+        font-size: 0.92rem;
+        color: #111B21;
+        cursor: pointer;
+    }
+    .wa-chat-menu-item:active {
+        background: #F0F2F5;
+    }
+
+    /* Message Stream */
+    .wa-messages-container {
+        flex: 1;
+        overflow-y: auto;
+        padding: 12px 14px;
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+    }
+    .wa-encryption-chip {
+        align-self: center;
+        background: #FFEECD;
+        color: #54656F;
+        font-size: 0.72rem;
+        text-align: center;
+        padding: 6px 12px;
+        border-radius: 8px;
+        box-shadow: 0 1px 1.5px rgba(0,0,0,0.12);
+        max-width: 86%;
+        margin-bottom: 8px;
+        line-height: 1.35;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+    .wa-date-chip {
+        align-self: center;
+        background: rgba(255, 255, 255, 0.92);
+        color: #54656F;
+        font-size: 0.72rem;
+        font-weight: 700;
+        padding: 4px 10px;
+        border-radius: 8px;
+        box-shadow: 0 1px 1.5px rgba(0,0,0,0.1);
+        margin: 6px 0 8px 0;
+    }
+
+    /* Chat Bubbles */
+    .wa-bubble {
+        max-width: 82%;
+        padding: 6px 9px 6px 9px;
+        font-size: 0.9rem;
+        line-height: 1.35;
+        position: relative;
+        box-shadow: 0 1px 0.5px rgba(11,20,26,0.13);
+        word-wrap: break-word;
+    }
+    .wa-bubble-mine {
+        align-self: flex-end;
+        background: #D9FDD3;
+        color: #111B21;
+        border-radius: 8px 0px 8px 8px;
+    }
+    .wa-bubble-theirs {
+        align-self: flex-start;
+        background: #FFFFFF;
+        color: #111B21;
+        border-radius: 0px 8px 8px 8px;
+    }
+    .wa-bubble-sender {
+        font-size: 0.74rem;
+        font-weight: 700;
+        color: #008069;
+        margin-bottom: 2px;
+    }
+    .wa-bubble-text {
+        white-space: pre-wrap;
+    }
+    .wa-bubble-meta {
+        display: flex;
+        align-items: center;
+        justify-content: flex-end;
+        gap: 3px;
+        margin-top: 2px;
+        float: right;
+        margin-left: 8px;
+    }
+    .wa-bubble-time {
+        font-size: 0.68rem;
+        color: #667781;
+    }
+    .wa-bubble-tick {
+        font-size: 0.72rem;
+        font-weight: 800;
+        color: #8696A0;
+    }
+    .wa-bubble-tick.read {
+        color: #53BDEB;
+    }
+
+    /* Typing Dots */
+    .wa-typing-bubble {
+        padding: 8px 14px;
+        display: flex;
+        align-items: center;
+        gap: 4px;
+    }
+    .wa-typing-bubble .dot {
+        width: 6px;
+        height: 6px;
+        background: #8696A0;
+        border-radius: 50%;
+        animation: typingBlink 1.2s infinite ease-in-out;
+    }
+    .wa-typing-bubble .dot:nth-child(2) { animation-delay: 0.2s; }
+    .wa-typing-bubble .dot:nth-child(3) { animation-delay: 0.4s; }
+
+    @@keyframes typingBlink {
+        0%, 100% { opacity: 0.3; transform: scale(0.8); }
+        50% { opacity: 1; transform: scale(1.2); }
+    }
+
+    /* Bottom Input */
+    .wa-input-container {
+        display: flex;
+        align-items: flex-end;
+        padding: 6px 8px;
+        gap: 6px;
+        background: transparent;
+        z-index: 20;
+    }
+    .wa-input-pill {
+        flex: 1;
+        background: #FFFFFF;
+        border-radius: 24px;
+        display: flex;
+        align-items: center;
+        padding: 4px 10px;
+        gap: 8px;
+        box-shadow: 0 1px 2px rgba(0,0,0,0.15);
+    }
+    .wa-input-icon-btn {
+        background: none;
+        border: none;
+        color: #8696A0;
+        cursor: pointer;
+        padding: 4px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        flex-shrink: 0;
+    }
+    .wa-input-box {
+        flex: 1;
+        border: none;
+        outline: none;
+        font-size: 0.95rem;
+        padding: 6px 2px;
+        max-height: 90px;
+        resize: none;
+        color: #111B21;
+        font-family: inherit;
+    }
+    .wa-action-btn {
+        width: 48px;
+        height: 48px;
+        border-radius: 50%;
+        background: #00A884;
+        color: white;
+        border: none;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.25);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        cursor: pointer;
+        flex-shrink: 0;
+    }
+    .wa-action-btn:active {
+        transform: scale(0.95);
+    }
+
+    /* Attachment Sheet */
+    .wa-attachment-sheet {
+        position: absolute;
+        bottom: 64px;
+        left: 12px;
+        right: 12px;
+        background: #FFFFFF;
+        border-radius: 16px;
+        box-shadow: 0 6px 20px rgba(0,0,0,0.25);
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 16px;
+        padding: 20px 16px;
+        z-index: 60;
+        animation: fadeIn 0.15s ease;
+    }
+    .wa-attach-item {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 8px;
+        cursor: pointer;
+    }
+    .wa-attach-circle {
+        width: 54px;
+        height: 54px;
+        border-radius: 50%;
+        color: white;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1.5rem;
+    }
+    .wa-attach-item span {
+        font-size: 0.78rem;
+        color: #54656F;
+    }
+
+    /* ══════════ CALL SCREEN & VIDEO CALL ══════════ */
+    .wa-call-screen {
+        position: fixed;
+        inset: 0;
+        z-index: 1000;
+        background: #111B21;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: space-between;
+        padding: 48px 24px 40px 24px;
+        color: white;
+    }
+    .wa-call-screen.video-mode {
+        background: #0B141A;
+        padding: 36px 16px 36px 16px;
+    }
+    .wa-call-screen-header {
+        text-align: center;
+    }
+    .wa-call-encryption {
+        font-size: 0.78rem;
+        color: #8696A0;
+        margin-bottom: 8px;
+    }
+    .wa-call-contact-name {
+        font-size: 1.45rem;
+        font-weight: 700;
+    }
+    .wa-call-status-label {
+        font-size: 0.95rem;
+        color: #A7F3D0;
+        margin-top: 4px;
+    }
+    .wa-call-avatar-center {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+    .wa-call-controls {
+        display: flex;
+        align-items: center;
+        gap: 20px;
+    }
+    .wa-call-round-btn {
+        width: 52px;
+        height: 52px;
+        border-radius: 50%;
+        background: rgba(255,255,255,0.15);
+        border: none;
+        color: white;
+        font-size: 1.4rem;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        cursor: pointer;
+    }
+    .wa-call-round-btn.active {
+        background: white;
+        color: #111B21;
+    }
+    .wa-call-end-btn {
+        width: 62px;
+        height: 62px;
+        border-radius: 50%;
+        background: #DC2626;
+        border: none;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        cursor: pointer;
+        box-shadow: 0 4px 10px rgba(220,38,38,0.4);
+    }
+    .wa-video-call-remote {
+        position: relative;
+        width: 100%;
+        flex: 1;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        margin: 16px 0;
+        border-radius: 16px;
+        overflow: hidden;
+        background: #1F2C34;
+        box-shadow: 0 4px 20px rgba(0,0,0,0.5);
+    }
+    .wa-video-feed-simulation {
+        width: 100%;
+        height: 100%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        position: relative;
+    }
+    .wa-simulated-webcam {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 12px;
+    }
+    .wa-avatar-video-pulse {
+        animation: videoPulse 2s infinite ease-in-out;
+        box-shadow: 0 0 25px rgba(37,211,102,0.4);
+    }
+    @@keyframes videoPulse {
+        0% { transform: scale(0.98); }
+        50% { transform: scale(1.02); }
+        100% { transform: scale(0.98); }
+    }
+    .wa-video-live-badge {
+        background: rgba(0,0,0,0.6);
+        color: #25D366;
+        padding: 3px 10px;
+        border-radius: 12px;
+        font-size: 0.75rem;
+        font-weight: 700;
+        letter-spacing: 0.5px;
+    }
+    .wa-video-partner-name {
+        font-size: 1.1rem;
+        font-weight: 600;
+        color: #FFFFFF;
+    }
+    .wa-video-camera-off {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+    }
+    .wa-pip-window {
+        position: absolute;
+        top: 14px;
+        right: 14px;
+        width: 100px;
+        height: 135px;
+        background: #2A3942;
+        border: 2px solid rgba(255,255,255,0.4);
+        border-radius: 12px;
+        overflow: hidden;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: space-between;
+        padding: 6px 4px;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.4);
+        z-index: 5;
+    }
+    .wa-pip-camera-preview {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 4px;
+    }
+    .wa-pip-label {
+        font-size: 0.65rem;
+        color: #A7F3D0;
+        font-weight: 600;
+        text-align: center;
+    }
+    .wa-pip-avatar {
+        width: 38px;
+        height: 38px;
+        border-radius: 50%;
+        background: #008069;
+        color: white;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 0.75rem;
+        font-weight: 700;
+    }
+    .wa-pip-flip-btn {
+        background: rgba(0,0,0,0.5);
+        border: none;
+        color: white;
+        border-radius: 20px;
+        padding: 2px 8px;
+        font-size: 0.75rem;
+        cursor: pointer;
+    }
+</style>
+
+@code {
+    [Parameter] public int ConversationId { get; set; }
+
+    private List<LocalMessage> messages = [];
+    private string inputMessage = "";
+    private string conversationTitle = "WhatsApp";
+    private string initials = "WA";
+    private string avatarBg = "#008069";
+    private bool isGroup = false;
+    private bool isOnline = true;
+    private string lastSeenTime = "10.45";
+
+    private bool isPartnerTyping = false;
+    private bool showChatMenu = false;
+    private bool showAttachmentMenu = false;
+
+    // Calling state
+    private bool isCallActive = false;
+    private bool isVideoCall = false;
+    private string activeCallStatus = "Memanggil...";
+    private bool isSpeakerOn = false;
+    private bool isVideoMuted = false;
+    private bool isMicMuted = false;
+    private bool isFrontCamera = true;
+    private System.Threading.Timer? callDurationTimer;
+    private int callSeconds = 0;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var conv = Db.GetConversationById(ConversationId);
+        if (conv is not null)
+        {
+            conversationTitle = conv.Name;
+            isGroup = conv.IsGroup;
+            isOnline = conv.IsOnline;
+            initials = GetInitials(conv.Name);
+            avatarBg = GetAvatarBg(conv.Name);
+        }
+
+        LoadMessages();
+        Db.MarkConversationAsRead(ConversationId);
+
+        // SignalR event hooks
+        ChatClient.OnMessageReceived += OnSignalRMessageReceived;
+        ChatClient.OnUserTyping += OnSignalRTyping;
+        ChatClient.OnUserStoppedTyping += OnSignalRStoppedTyping;
+
+        await ChatClient.JoinConversationAsync(ConversationId);
+    }
+
+    private void LoadMessages()
+    {
+        messages = Db.GetMessages(ConversationId).ToList();
+    }
+
+    private void GoBack()
+    {
+        Nav.NavigateTo("/");
+    }
+
+    private void ToggleChatMenu() => showChatMenu = !showChatMenu;
+    private void ToggleAttachmentMenu() => showAttachmentMenu = !showAttachmentMenu;
+    private void ToggleProfileInfo() => AlertAction($"Profil: {conversationTitle}");
+
+    private void HandleKeyDown(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter" && !e.ShiftKey)
+        {
+            SendMessage();
+        }
+    }
+
+    private void InsertEmoji(string emoji)
+    {
+        inputMessage += emoji;
+    }
+
+    private void InsertAttachment(string filename)
+    {
+        inputMessage += $" [📎 {filename}] ";
+        showAttachmentMenu = false;
+    }
+
+    private async void SendMessage()
+    {
+        if (string.IsNullOrWhiteSpace(inputMessage)) return;
+
+        var text = inputMessage.Trim();
+        inputMessage = "";
+
+        // 1. Save locally to SQLite
+        var msg = Db.AddLocalMessage(ConversationId, "me", "Saya", text, true, MessageType.Text);
+        messages.Add(msg);
+        StateHasChanged();
+
+        // 2. Push via SignalR if online
+        try
+        {
+            await ChatClient.SendMessageAsync(ConversationId, text);
+        }
+        catch { }
+
+        // 3. Simulated response for realistic WhatsApp demo
+        TriggerSimulatedResponse(text);
+    }
+
+    private async void TriggerSimulatedResponse(string userText)
+    {
+        // Give realistic reply after 1.5 seconds if talking to Kang Fadhil or Dev team
+        await Task.Delay(800);
+        isPartnerTyping = true;
+        StateHasChanged();
+
+        await Task.Delay(1200);
+        isPartnerTyping = false;
+
+        string replyText;
+        string sender = conversationTitle;
+        string senderId = "partner";
+
+        if (conversationTitle.Contains("Kang Fadhil"))
+        {
+            replyText = userText.Length < 10
+                ? "Siap, fitur Clevora WhatsApp ini berjalan lancar di Android MAUI!"
+                : $"Terima kasih! Terkait \"{userText}\", arsitektur .NET 10 LTS dan SQLite offline cache sudah memastikannya tetap responsif tanpa internet.";
+            sender = "Kang Fadhil";
+            senderId = "kf";
+        }
+        else if (conversationTitle.Contains("Tim"))
+        {
+            replyText = "Mantap! Tim terus memantau performa Kestrel, Nginx, dan sinkronisasi SQLite WAL 👍";
+            sender = "Iruzzz67";
+            senderId = "iruzzz";
+        }
+        else
+        {
+            replyText = "Pesan diterima dengan baik via Clevora WhatsApp!";
+        }
+
+        var replyMsg = Db.AddLocalMessage(ConversationId, senderId, sender, replyText, false, MessageType.Text);
+        messages.Add(replyMsg);
+        StateHasChanged();
+    }
+
+    private void ClearChat()
+    {
+        // Simple UI refresh
+        messages.Clear();
+        showChatMenu = false;
+        StateHasChanged();
+    }
+
+    private void AlertAction(string msg)
+    {
+        showChatMenu = false;
+    }
+
+    private void OnSignalRMessageReceived(MessageDto dto)
+    {
+        if (dto.ConversationId == ConversationId)
+        {
+            Db.SaveMessage(dto, "me");
+            InvokeAsync(() =>
+            {
+                LoadMessages();
+                StateHasChanged();
+            });
+        }
+    }
+
+    private void OnSignalRTyping(string userId, int convId)
+    {
+        if (convId == ConversationId)
+        {
+            isPartnerTyping = true;
+            InvokeAsync(StateHasChanged);
+        }
+    }
+
+    private void OnSignalRStoppedTyping(string userId, int convId)
+    {
+        if (convId == ConversationId)
+        {
+            isPartnerTyping = false;
+            InvokeAsync(StateHasChanged);
+        }
+    }
+
+    private string FormatMessage(string body)
+    {
+        if (string.IsNullOrEmpty(body)) return string.Empty;
+        // Basic WhatsApp Markdown
+        var formatted = System.Net.WebUtility.HtmlEncode(body);
+        formatted = System.Text.RegularExpressions.Regex.Replace(formatted, @"\*(.*?)\*", "<strong>$1</strong>");
+        formatted = System.Text.RegularExpressions.Regex.Replace(formatted, @"_(.*?)_", "<em>$1</em>");
+        formatted = System.Text.RegularExpressions.Regex.Replace(formatted, @"~(.*?)~", "<del>$1</del>");
+        return formatted;
+    }
+
+    private string GetInitials(string name)
+    {
+        if (string.IsNullOrWhiteSpace(name)) return "WA";
+        var parts = name.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        if (parts.Length == 1) return parts[0][0].ToString().ToUpper();
+        return $"{parts[0][0]}{parts[1][0]}".ToUpper();
+    }
+
+    private string GetAvatarBg(string name)
+    {
+        string[] colors = { "#00A884", "#128C7E", "#25D366", "#0D9488", "#0284C7", "#7C3AED", "#DB2777" };
+        int hash = Math.Abs(name.GetHashCode());
+        return colors[hash % colors.Length];
+    }
+
+    private void StartCall(bool isVideo)
+    {
+        isVideoCall = isVideo;
+        activeCallStatus = "Memanggil...";
+        isCallActive = true;
+        callSeconds = 0;
+        isSpeakerOn = false;
+        isMicMuted = false;
+        isVideoMuted = false;
+
+        Task.Run(async () =>
+        {
+            await Task.Delay(1400);
+            activeCallStatus = "Berdering...";
+            await InvokeAsync(StateHasChanged);
+
+            await Task.Delay(1800);
+            activeCallStatus = "00:00";
+            callDurationTimer = new System.Threading.Timer(_ =>
+            {
+                callSeconds++;
+                int min = callSeconds / 60;
+                int sec = callSeconds % 60;
+                activeCallStatus = $"{min:00}:{sec:00}";
+                InvokeAsync(StateHasChanged);
+            }, null, 1000, 1000);
+
+            await InvokeAsync(StateHasChanged);
+        });
+    }
+
+    private void EndCall()
+    {
+        callDurationTimer?.Dispose();
+        callDurationTimer = null;
+        isCallActive = false;
+
+        string dur = callSeconds > 0 ? $"{callSeconds / 60:00}:{callSeconds % 60:00}" : "00:00";
+        Db.AddCall(conversationTitle, isVideoCall, isIncoming: false, isMissed: callSeconds == 0, duration: dur);
+        StateHasChanged();
+    }
+
+    private void ToggleFlipCamera()
+    {
+        isFrontCamera = !isFrontCamera;
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        callDurationTimer?.Dispose();
+        ChatClient.OnMessageReceived -= OnSignalRMessageReceived;
+        ChatClient.OnUserTyping -= OnSignalRTyping;
+        ChatClient.OnUserStoppedTyping -= OnSignalRStoppedTyping;
+        await ChatClient.LeaveConversationAsync(ConversationId);
+    }
+}

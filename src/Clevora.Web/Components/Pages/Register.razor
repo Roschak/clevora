@@ -1,0 +1,10 @@
+@page "/register"
+
+@code {
+    protected override void OnInitialized()
+    {
+        Nav.NavigateTo("/Account/Register", forceLoad: true);
+    }
+}
+
+@inject NavigationManager Nav

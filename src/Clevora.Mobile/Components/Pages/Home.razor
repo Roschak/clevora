@@ -1,77 +1,2647 @@
 ﻿@page "/"
 @using Clevora.Mobile.Services
-@inject LocalDatabaseService LocalDb
+@implements IDisposable
+@inject LocalDatabaseService Db
+@inject ChatClientService ChatClient
 @inject NavigationManager Nav
+@inject HttpClient Http
 
-<div class="mobile-home p-3">
-    <!-- Header -->
-    <div class="hero-card p-4 mb-4 rounded-4 text-white"
-         style="background: linear-gradient(135deg, #25D366 0%, #128C7E 100%);">
-        <div class="fs-3 fw-bold">🟢 Clevora</div>
-        <div class="small opacity-75 mt-1">Platform Pesan WhatsApp Profesional</div>
-        <div class="mt-3 d-flex gap-3">
-            <div class="text-center">
-                <div class="fs-5 fw-bold">@templateCount</div>
-                <div class="small opacity-75">Template</div>
-            </div>
-            <div class="text-center">
-                <div class="fs-5 fw-bold">@categoryCount</div>
-                <div class="small opacity-75">Kategori</div>
-            </div>
-            <div class="text-center">
-                <div class="fs-5 fw-bold">@pendingCount</div>
-                <div class="small opacity-75">Pending Sync</div>
+<div class="wa-app-container">
+    <!-- WhatsApp Top Header -->
+    <header class="wa-header">
+        <div class="wa-header-top">
+            <h1 class="wa-logo">WhatsApp</h1>
+            <div class="wa-header-actions">
+                <button class="wa-icon-btn" title="Kamera" @onclick='() => OpenStatusCreator()'>
+                    <svg viewBox="0 0 24 24" width="22" height="22" fill="currentColor">
+                        <path d="M12 9c-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34 3-3-1.34-3-3-3m7-4h-3.17L14.4 3.14C14.03 2.76 13.53 2.5 13 2.5h-2c-.53 0-1.03.26-1.4.64L8.17 5H5c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2m-7 13c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5"/>
+                    </svg>
+                </button>
+                <button class="wa-icon-btn" title="Cari" @onclick="ToggleSearch">
+                    <svg viewBox="0 0 24 24" width="22" height="22" fill="currentColor">
+                        <path d="M15.5 14h-.79l-.28-.27A6.471 6.471 0 0 0 16 9.5 6.5 6.5 0 1 0 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14"/>
+                    </svg>
+                </button>
+                <button class="wa-icon-btn" title="Menu lainnya" @onclick="ToggleMenu">
+                    <svg viewBox="0 0 24 24" width="22" height="22" fill="currentColor">
+                        <path d="M12 8c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2m0 2c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2m0 6c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2"/>
+                    </svg>
+                </button>
             </div>
         </div>
-    </div>
 
-    <!-- Quick actions -->
-    <h6 class="fw-bold text-muted small text-uppercase mb-2">Aksi Cepat</h6>
-    <div class="d-grid gap-2 mb-4">
-        <button class="btn btn-success py-3 fw-bold shadow-sm" @onclick='() => Nav.NavigateTo("/composer")'>
-            ✏️ Buka Composer WA
-        </button>
-        <button class="btn btn-outline-success py-2" @onclick='() => Nav.NavigateTo("/templates")'>
-            📋 Kelola Template
-        </button>
-    </div>
+        <!-- Optional Search Bar -->
+        @if (isSearching)
+        {
+            <div class="wa-search-bar">
+                <input type="text" class="wa-search-input" placeholder="Cari percakapan..." @bind="searchQuery" @bind:event="oninput" autofocus />
+                <button class="wa-search-clear" @onclick="ToggleSearch">✕</button>
+            </div>
+        }
 
-    <!-- Favorite templates -->
-    @if (favorites.Any())
+        <!-- WhatsApp Tabs -->
+        <nav class="wa-tabs">
+            <button class="wa-tab-item wa-tab-community @(activeTab == "community" ? "active" : "")" @onclick='() => SetTab("community")' title="Komunitas">
+                <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor">
+                    <path d="M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5s-3 1.34-3 3 1.34 3 3 3m-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5 5 6.34 5 8s1.34 3 3 3m0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5m8 0c-.29 0-.62.02-.97.05 1.16.84 1.97 1.97 1.97 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5"/>
+                </svg>
+            </button>
+            <button class="wa-tab-item @(activeTab == "chats" ? "active" : "")" @onclick='() => SetTab("chats")'>
+                CHAT
+                @if (TotalUnreadCount > 0)
+                {
+                    <span class="wa-tab-badge">@TotalUnreadCount</span>
+                }
+            </button>
+            <button class="wa-tab-item @(activeTab == "status" ? "active" : "")" @onclick='() => SetTab("status")'>
+                STATUS
+                @if (recentStatuses.Any(s => !s.IsViewed))
+                {
+                    <span class="wa-tab-dot"></span>
+                }
+            </button>
+            <button class="wa-tab-item @(activeTab == "calls" ? "active" : "")" @onclick='() => SetTab("calls")'>
+                PANGGILAN
+            </button>
+        </nav>
+    </header>
+
+    <!-- Context Menu Dropdown -->
+    @if (showMenu)
     {
-        <h6 class="fw-bold text-muted small text-uppercase mb-2">⭐ Template Favorit</h6>
-        <div class="d-flex flex-column gap-2 mb-4">
-            @foreach (var t in favorites)
-            {
-                <div class="card border-warning shadow-sm p-2" @onclick="() => GoToComposer(t.Id)"
-                     style="cursor:pointer;">
-                    <div class="fw-bold small">@t.Title</div>
-                    <div class="text-muted small text-truncate">@t.Body</div>
-                </div>
-            }
+        <div class="wa-menu-backdrop" @onclick="ToggleMenu"></div>
+        <div class="wa-menu-dropdown">
+            <div class="wa-menu-item" @onclick='() => { ToggleMenu(); Nav.NavigateTo("/new-chat"); }'>Grup baru</div>
+            <div class="wa-menu-item" @onclick='() => { ToggleMenu(); Nav.NavigateTo("/new-chat"); }'>Chat baru</div>
+            <div class="wa-menu-item" @onclick='() => { ToggleMenu(); showAuthModal = true; }'>👤 Akun &amp; Otentikasi (Auth)</div>
+            <div class="wa-menu-item" @onclick='() => { ToggleMenu(); showDirectChatModal = true; }'>
+                ✨ Chat Nomor Baru (Tanpa Simpan)
+            </div>
+            <div class="wa-menu-item" @onclick='() => { ToggleMenu(); Nav.NavigateTo("/settings"); }'>⚙️ Setelan WhatsApp</div>
+            <div class="wa-menu-item" @onclick='() => { ToggleMenu(); showSettingsModal = true; }'>📶 Server Sync &amp; IP</div>
+            <div class="wa-menu-item wa-menu-credit" @onclick='() => { ToggleMenu(); showAboutModal = true; }'>Tentang Clevora</div>
         </div>
     }
 
-    <!-- Credit -->
-    <div class="text-center text-muted mt-4" style="font-size:0.75rem;">
-        Dibuat oleh <strong>Gravicode Studios</strong><br />
-        dipimpin oleh <em>Kang Fadhil</em>
-    </div>
+    <!-- Main Content by Tab -->
+    <main class="wa-main-content">
+        @if (activeTab == "chats")
+        {
+            <!-- CHATS TAB -->
+            <div class="wa-chat-list">
+                @if (!isOnlineServer)
+                {
+                    <div style="background:#FEF3C7;border-left:4px solid #F59E0B;padding:8px 12px;display:flex;align-items:center;justify-content:space-between;font-size:0.8rem;color:#92400E;margin-bottom:4px;">
+                        <span>📶 <strong>Mode Offline:</strong> Server tidak berjalan. SQLite lokal aktif &amp; chat tetap tersimpan.</span>
+                        <button style="background:#F59E0B;color:white;border:none;border-radius:4px;padding:3px 8px;font-size:0.75rem;cursor:pointer;font-weight:600;" @onclick="ConnectServer">Coba Hubungkan</button>
+                    </div>
+                }
+
+                <!-- Fitur Tambahan Clevora Banner: Direct Chat -->
+                <div class="wa-exclusive-banner" @onclick="() => showDirectChatModal = true">
+                    <span class="wa-banner-icon">✨</span>
+                    <div style="flex:1;">
+                        <div style="font-weight:700;font-size:0.88rem;color:#008069;">Fitur Clevora: Chat Tanpa Simpan Nomor</div>
+                        <div style="font-size:0.75rem;color:#667781;">Kirim pesan langsung ke nomor WhatsApp apa saja secara instan.</div>
+                    </div>
+                    <span style="font-size:1.1rem;color:#008069;">→</span>
+                </div>
+
+                @if (filteredConversations.Count == 0)
+                {
+                    <div class="wa-empty-state">
+                        <div class="wa-empty-icon">💬</div>
+                        <h3>Tidak ada percakapan</h3>
+                        <p>Ketuk tombol pesan di pojok kanan bawah untuk memulai percakapan baru.</p>
+                    </div>
+                }
+                else
+                {
+                    @foreach (var c in filteredConversations)
+                    {
+                        <div class="wa-chat-row" @onclick="() => OpenChat(c.Id)">
+                            <div class="wa-avatar-container">
+                                <div class="wa-avatar" style="background: @GetAvatarBg(c.Name)">
+                                    @GetInitials(c.Name)
+                                </div>
+                                @if (c.IsOnline)
+                                {
+                                    <span class="wa-online-indicator"></span>
+                                }
+                            </div>
+                            <div class="wa-chat-details">
+                                <div class="wa-chat-top-row">
+                                    <span class="wa-contact-name">@c.Name</span>
+                                    <span class="wa-timestamp @(c.UnreadCount > 0 ? "highlight" : "")">
+                                        @FormatTimestamp(c.LastMessageAt)
+                                    </span>
+                                </div>
+                                <div class="wa-chat-bottom-row">
+                                    <span class="wa-message-snippet">
+                                        <span class="wa-tick">✓✓</span>
+                                        @c.LastMessage
+                                    </span>
+                                    @if (c.UnreadCount > 0)
+                                    {
+                                        <span class="wa-unread-badge">@c.UnreadCount</span>
+                                    }
+                                </div>
+                            </div>
+                        </div>
+                    }
+                }
+            </div>
+
+            <!-- WhatsApp FAB: Start New Chat -->
+            <button class="wa-fab" title="Mulai Chat Baru" @onclick='() => Nav.NavigateTo("/new-chat")'>
+                <svg viewBox="0 0 24 24" width="24" height="24" fill="white">
+                    <path d="M20 2H4c-1.1 0-1.99.9-1.99 2L2 22l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2m-2 12H6v-2h12zm0-3H6V9h12zm0-3H6V6h12z"/>
+                </svg>
+            </button>
+        }
+        else if (activeTab == "status")
+        {
+            <!-- STATUS TAB -->
+            <div class="wa-status-list">
+                <!-- My Status -->
+                <div class="wa-my-status-row" @onclick="HandleMyStatusClick">
+                    <div class="wa-my-status-avatar-box">
+                        <div class="wa-avatar wa-avatar-my" style="background:@(myStatus?.ColorBg ?? "#00A884")">
+                            @(myStatus != null ? "S" : "S")
+                        </div>
+                        <span class="wa-add-status-plus">+</span>
+                    </div>
+                    <div class="wa-status-details">
+                        <div class="wa-status-name">Status saya</div>
+                        <div class="wa-status-sub">
+                            @(myStatus != null ? $"Hari ini • {FormatTimestamp(myStatus.CreatedAt)}" : "Ketuk untuk menambahkan pembaruan status")
+                        </div>
+                    </div>
+                </div>
+
+                @if (recentStatuses.Any(s => !s.IsViewed))
+                {
+                    <div class="wa-status-section-header">Pembaruan terkini</div>
+                    @foreach (var st in recentStatuses.Where(s => !s.IsViewed))
+                    {
+                        <div class="wa-status-row" @onclick="() => ViewStatusStory(st)">
+                            <div class="wa-status-ring">
+                                <div class="wa-avatar" style="background: @st.ColorBg">
+                                    @GetInitials(st.UserName)
+                                </div>
+                            </div>
+                            <div class="wa-status-details">
+                                <div class="wa-status-name">@st.UserName</div>
+                                <div class="wa-status-sub">@FormatTimestamp(st.CreatedAt)</div>
+                            </div>
+                        </div>
+                    }
+                }
+
+                @if (recentStatuses.Any(s => s.IsViewed))
+                {
+                    <div class="wa-status-section-header">Pembaruan yang telah dilihat</div>
+                    @foreach (var st in recentStatuses.Where(s => s.IsViewed))
+                    {
+                        <div class="wa-status-row wa-status-viewed" @onclick="() => ViewStatusStory(st)">
+                            <div class="wa-status-ring viewed">
+                                <div class="wa-avatar" style="background: @st.ColorBg">
+                                    @GetInitials(st.UserName)
+                                </div>
+                            </div>
+                            <div class="wa-status-details">
+                                <div class="wa-status-name">@st.UserName</div>
+                                <div class="wa-status-sub">@FormatTimestamp(st.CreatedAt)</div>
+                            </div>
+                        </div>
+                    }
+                }
+            </div>
+
+            <!-- WhatsApp Status FABs -->
+            <div class="wa-status-fabs">
+                <button class="wa-fab-mini" title="Tulis status teks" @onclick="OpenStatusCreator">
+                    <svg viewBox="0 0 24 24" width="18" height="18" fill="#54656F">
+                        <path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34a.996.996 0 0 0-1.41 0l-1.83 1.83 3.75 3.75z"/>
+                    </svg>
+                </button>
+                <button class="wa-fab" title="Ambil foto status" @onclick="OpenStatusCreator">
+                    <svg viewBox="0 0 24 24" width="24" height="24" fill="white">
+                        <path d="M12 9c-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34 3-3-1.34-3-3-3m7-4h-3.17L14.4 3.14C14.03 2.76 13.53 2.5 13 2.5h-2c-.53 0-1.03.26-1.4.64L8.17 5H5c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2m-7 13c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5"/>
+                    </svg>
+                </button>
+            </div>
+        }
+        else if (activeTab == "calls")
+        {
+            <!-- CALLS TAB -->
+            <div class="wa-call-list">
+                <div class="wa-call-link-row">
+                    <div class="wa-call-link-avatar">
+                        <svg viewBox="0 0 24 24" width="22" height="22" fill="white">
+                            <path d="M3.9 12c0-1.71 1.39-3.1 3.1-3.1h4V7H7c-2.76 0-5 2.24-5 5s2.24 5 5 5h4v-1.9H7c-1.71 0-3.1-1.39-3.1-3.1M8 13h8v-2H8zm9-6h-4v1.9h4c1.71 0 3.1 1.39 3.1 3.1s-1.39 3.1-3.1 3.1h-4V17h4c2.76 0 5-2.24 5-5s-2.24-5-5-5"/>
+                        </svg>
+                    </div>
+                    <div class="wa-call-details">
+                        <div class="wa-call-name">Buat tautan panggilan</div>
+                        <div class="wa-call-sub">Bagikan tautan untuk panggilan Clevora Anda</div>
+                    </div>
+                </div>
+
+                <div class="wa-status-section-header">Terbaru</div>
+
+                @foreach (var call in callLogs)
+                {
+                    <div class="wa-call-row">
+                        <div class="wa-avatar" style="background:@GetAvatarBg(call.ContactName)">
+                            @GetInitials(call.ContactName)
+                        </div>
+                        <div class="wa-call-details">
+                            <div class="wa-call-name">@call.ContactName</div>
+                            <div class="wa-call-sub">
+                                @if (call.IsMissed)
+                                {
+                                    <span class="wa-call-arrow missed">↙</span>
+                                    <span style="color:#DC2626;">Tak terjawab • @FormatTimestamp(call.Timestamp)</span>
+                                }
+                                else if (call.IsIncoming)
+                                {
+                                    <span class="wa-call-arrow incoming">↙</span>
+                                    <span>Masuk (@call.Duration) • @FormatTimestamp(call.Timestamp)</span>
+                                }
+                                else
+                                {
+                                    <span class="wa-call-arrow outgoing">↗</span>
+                                    <span>Keluar (@call.Duration) • @FormatTimestamp(call.Timestamp)</span>
+                                }
+                            </div>
+                        </div>
+                        <button class="wa-call-action-btn" @onclick="() => LaunchSimulatedCall(call.ContactName, call.IsVideo)">
+                            @if (call.IsVideo)
+                            {
+                                <svg viewBox="0 0 24 24" width="22" height="22" fill="#008069">
+                                    <path d="M17 10.5V7c0-.55-.45-1-1-1H4c-.55 0-1 .45-1 1v10c0 .55.45 1 1 1h12c.55 0 1-.45 1-1v-3.5l4 4v-11z"/>
+                                </svg>
+                            }
+                            else
+                            {
+                                <svg viewBox="0 0 24 24" width="22" height="22" fill="#008069">
+                                    <path d="M20.01 15.38c-1.23 0-2.42-.2-3.53-.56a.977.977 0 0 0-1.01.24l-1.57 1.97c-2.83-1.35-5.48-3.9-6.89-6.83l1.95-1.66c.27-.28.35-.67.24-1.02-.37-1.11-.56-2.3-.56-3.53 0-.54-.45-.99-.99-.99H4.19C3.65 3 3 3.24 3 3.99 3 13.28 10.73 21 20.01 21c.71 0 .99-.63.99-1.18v-3.45c0-.54-.45-.99-.99-.99"/>
+                                </svg>
+                            }
+                        </button>
+                    </div>
+                }
+            </div>
+
+            <!-- Calls FAB -->
+            <button class="wa-fab" title="Panggilan baru" @onclick='() => LaunchSimulatedCall("Kang Fadhil (Gravicode)", false)'>
+                <svg viewBox="0 0 24 24" width="24" height="24" fill="white">
+                    <path d="M20.01 15.38c-1.23 0-2.42-.2-3.53-.56a.977.977 0 0 0-1.01.24l-1.57 1.97c-2.83-1.35-5.48-3.9-6.89-6.83l1.95-1.66c.27-.28.35-.67.24-1.02-.37-1.11-.56-2.3-.56-3.53 0-.54-.45-.99-.99-.99H4.19C3.65 3 3 3.24 3 3.99 3 13.28 10.73 21 20.01 21c.71 0 .99-.63.99-1.18v-3.45c0-.54-.45-.99-.99-.99"/>
+                </svg>
+            </button>
+        }
+        else if (activeTab == "community")
+        {
+            <!-- FORUM KOMUNITAS (BEDA DARI CHAT GRUP) -->
+            <div class="wa-forum-container">
+                <!-- Forum Header Banner -->
+                <div class="wa-forum-header-banner">
+                    <div style="flex:1;">
+                        <div class="wa-forum-badge">COMMUNITY FORUM</div>
+                        <h2 class="wa-forum-title">Forum Komunitas Clevora</h2>
+                        <p class="wa-forum-subtitle">Beda dari chat grup biasa: diskusi topik terstruktur, ide fitur, dan tanya jawab teknis dengan sistem voting.</p>
+                    </div>
+                    <button class="wa-forum-btn-new" @onclick="() => showNewThreadModal = true">
+                        + Buat Topik
+                    </button>
+                </div>
+
+                <!-- Forum Category Filter Pills -->
+                <div class="wa-forum-categories">
+                    @foreach (var cat in forumCategories)
+                    {
+                        <button class="wa-forum-pill @(activeForumCategory == cat ? "active" : "")" 
+                                @onclick="() => FilterForumCategory(cat)">
+                            @cat
+                        </button>
+                    }
+                </div>
+
+                <!-- Threads List -->
+                <div class="wa-forum-thread-list">
+                    @if (forumThreads.Count == 0)
+                    {
+                        <div class="wa-empty-state" style="padding:40px 20px;">
+                            <div class="wa-empty-icon">💡</div>
+                            <h3>Belum ada topik diskusi</h3>
+                            <p>Jadilah yang pertama membuat topik baru di kategori ini!</p>
+                            <button class="wa-btn-primary" style="margin-top:12px;" @onclick="() => showNewThreadModal = true">Tulis Topik Pertama</button>
+                        </div>
+                    }
+                    else
+                    {
+                        @foreach (var t in forumThreads)
+                        {
+                            <div class="wa-forum-card" @onclick="() => OpenThreadDetail(t)">
+                                <div class="wa-forum-card-top">
+                                    <span class="wa-category-tag @GetCategoryClass(t.Category)">@t.Category</span>
+                                    <span class="wa-forum-time">@FormatTimestamp(t.CreatedAt)</span>
+                                </div>
+
+                                <div class="wa-forum-author-row">
+                                    <div class="wa-avatar wa-avatar-sm" style="background:@GetAvatarBg(t.AuthorName)">
+                                        @GetInitials(t.AuthorName)
+                                    </div>
+                                    <div class="wa-forum-author-name">
+                                        @t.AuthorName
+                                        @if (t.AuthorName.Contains("Fadhil") || t.AuthorName.Contains("Gravicode"))
+                                        {
+                                            <span class="wa-author-badge" title="Lead Developer">★ DEV</span>
+                                        }
+                                    </div>
+                                </div>
+
+                                <h3 class="wa-forum-card-title">@t.Title</h3>
+                                <p class="wa-forum-card-content">@t.Content</p>
+
+                                @if (!string.IsNullOrWhiteSpace(t.Tags))
+                                {
+                                    <div class="wa-forum-tags">
+                                        @foreach (var tag in t.Tags.Split(' ', StringSplitOptions.RemoveEmptyEntries))
+                                        {
+                                            <span class="wa-forum-tag-chip">@tag</span>
+                                        }
+                                    </div>
+                                }
+
+                                <div class="wa-forum-card-footer">
+                                    <button class="wa-forum-upvote-btn @(t.HasUpvoted ? "upvoted" : "")" 
+                                            @onclick="() => ToggleThreadUpvote(t.Id)" 
+                                            @onclick:stopPropagation>
+                                        <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor">
+                                            <path d="M12 4l-8 8h5v8h6v-8h5z"/>
+                                        </svg>
+                                        <span>@t.Upvotes</span>
+                                    </button>
+
+                                    <div class="wa-forum-replies-badge">
+                                        <svg viewBox="0 0 24 24" width="15" height="15" fill="currentColor" style="margin-right:4px;">
+                                            <path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2z"/>
+                                        </svg>
+                                        <span>@t.CommentCount balasan</span>
+                                    </div>
+
+                                    <span class="wa-forum-read-more">Lihat Diskusi →</span>
+                                </div>
+                            </div>
+                        }
+                    }
+                </div>
+            </div>
+        }
+    </main>
+
+    <!-- ════════════════════════════════════════════════════════════════════════ -->
+    <!-- WHATSAPP STATUS STORY VIEWER (FULLSCREEN OVERLAY) -->
+    <!-- ════════════════════════════════════════════════════════════════════════ -->
+    @if (activeStory != null)
+    {
+        <div class="wa-story-overlay" style="background: @activeStory.ColorBg">
+            <!-- Top Progress Bar -->
+            <div class="wa-story-progress-container">
+                <div class="wa-story-progress-bar" style="width: @(storyProgress)%;"></div>
+            </div>
+
+            <!-- Story Header -->
+            <div class="wa-story-header">
+                <button class="wa-story-close" @onclick="CloseStory">✕</button>
+                <div class="wa-avatar" style="width:36px;height:36px;font-size:0.9rem;background:rgba(255,255,255,0.25)">
+                    @GetInitials(activeStory.UserName)
+                </div>
+                <div class="wa-story-user-meta">
+                    <div class="wa-story-user-name">@activeStory.UserName</div>
+                    <div class="wa-story-time">@FormatTimestamp(activeStory.CreatedAt)</div>
+                </div>
+            </div>
+
+            <!-- Story Body with Tapping Zones -->
+            <div class="wa-story-content">
+                <div class="wa-story-tap-left" @onclick="PrevStory" title="Sebelumnya"></div>
+                <div class="wa-story-text">
+                    @activeStory.TextContent
+                </div>
+                <div class="wa-story-tap-right" @onclick="NextStory" title="Selanjutnya"></div>
+            </div>
+
+            <!-- Bottom Reply Bar -->
+            <div class="wa-story-footer">
+                <input class="wa-story-reply-input" placeholder="Balas status..." @bind="storyReplyText" />
+                <button class="wa-story-send-btn" @onclick="SendStoryReply">
+                    <svg viewBox="0 0 24 24" width="20" height="20" fill="white">
+                        <path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/>
+                    </svg>
+                </button>
+            </div>
+        </div>
+    }
+
+    <!-- ════════════════════════════════════════════════════════════════════════ -->
+    <!-- WHATSAPP STATUS CREATOR -->
+    <!-- ════════════════════════════════════════════════════════════════════════ -->
+    @if (showStatusCreator)
+    {
+        <div class="wa-status-creator-screen" style="background: @creatorBgColor">
+            <div class="wa-status-creator-header">
+                <button class="wa-story-close" @onclick="() => showStatusCreator = false">✕</button>
+                <div class="wa-color-palette">
+                    @foreach (var c in statusPalette)
+                    {
+                        <span class="wa-color-dot @(creatorBgColor == c ? "selected" : "")" 
+                              style="background:@c" 
+                              @onclick="() => creatorBgColor = c"></span>
+                    }
+                </div>
+            </div>
+
+            <textarea class="wa-status-creator-input" 
+                      placeholder="Ketik status teks Anda..." 
+                      @bind="newStatusText" 
+                      autofocus></textarea>
+
+            <button class="wa-fab" style="position:absolute;bottom:24px;right:24px;" @onclick="SaveNewStatus">
+                <svg viewBox="0 0 24 24" width="24" height="24" fill="white">
+                    <path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/>
+                </svg>
+            </button>
+        </div>
+    }
+
+    <!-- ════════════════════════════════════════════════════════════════════════ -->
+    <!-- INTERACTIVE WHATSAPP CALL SCREEN (VIDEO & VOICE) -->
+    <!-- ════════════════════════════════════════════════════════════════════════ -->
+    @if (isCallActive)
+    {
+        <div class="wa-call-screen @(isVideoCall ? "video-mode" : "audio-mode")">
+            <div class="wa-call-screen-header">
+                <div class="wa-call-encryption">🔒 Terenkripsi end-to-end</div>
+                <div class="wa-call-contact-name">@activeCallContact</div>
+                <div class="wa-call-status-label">
+                    @(isVideoCall ? $"Panggilan Video • {activeCallStatus}" : $"Panggilan Suara • {activeCallStatus}")
+                </div>
+            </div>
+
+            @if (isVideoCall)
+            {
+                <!-- Remote Video Stream Simulation -->
+                <div class="wa-video-call-remote">
+                    <div class="wa-video-feed-simulation">
+                        @if (isVideoMuted)
+                        {
+                            <div class="wa-video-camera-off">
+                                <div class="wa-avatar" style="width:110px;height:110px;font-size:2.8rem;background:@GetAvatarBg(activeCallContact)">
+                                    @GetInitials(activeCallContact)
+                                </div>
+                                <div style="margin-top:12px;font-size:0.85rem;color:#8696A0;">Kamera dinonaktifkan</div>
+                            </div>
+                        }
+                        else
+                        {
+                            <div class="wa-simulated-webcam">
+                                <div class="wa-avatar wa-avatar-video-pulse" style="width:120px;height:120px;font-size:3rem;background:@GetAvatarBg(activeCallContact)">
+                                    @GetInitials(activeCallContact)
+                                </div>
+                                <div class="wa-video-live-badge">● LIVE HD (60 FPS)</div>
+                                <div class="wa-video-partner-name">@activeCallContact</div>
+                            </div>
+                        }
+                    </div>
+
+                    <!-- Local Camera Picture-in-Picture (PiP) Window -->
+                    <div class="wa-pip-window">
+                        <div class="wa-pip-camera-preview">
+                            <span class="wa-pip-label">@(isFrontCamera ? "Kamera Depan" : "Kamera Belakang")</span>
+                            <div class="wa-pip-avatar">Anda</div>
+                        </div>
+                        <button class="wa-pip-flip-btn" @onclick="ToggleFlipCamera" title="Putar Kamera">
+                            🔄
+                        </button>
+                    </div>
+                </div>
+            }
+            else
+            {
+                <div class="wa-call-avatar-center">
+                    <div class="wa-avatar" style="width:120px;height:120px;font-size:2.8rem;background:@GetAvatarBg(activeCallContact)">
+                        @GetInitials(activeCallContact)
+                    </div>
+                </div>
+            }
+
+            <div class="wa-call-controls">
+                @if (isVideoCall)
+                {
+                    <button class="wa-call-round-btn" @onclick="ToggleFlipCamera" title="Putar Kamera">
+                        🔄
+                    </button>
+                }
+                <button class="wa-call-round-btn @(isSpeakerOn ? "active" : "")" @onclick="() => isSpeakerOn = !isSpeakerOn" title="Speaker">
+                    🔊
+                </button>
+                <button class="wa-call-round-btn @(isVideoMuted ? "active" : "")" @onclick="() => isVideoMuted = !isVideoMuted" title="Kamera">
+                    📹
+                </button>
+                <button class="wa-call-round-btn @(isMicMuted ? "active" : "")" @onclick="() => isMicMuted = !isMicMuted" title="Mute Mic">
+                    🎙️
+                </button>
+                <button class="wa-call-end-btn" @onclick="EndCall" title="Akhiri Panggilan">
+                    <svg viewBox="0 0 24 24" width="30" height="30" fill="white">
+                        <path d="M12 9c-1.6 0-3.15.25-4.6.72v3.1c0 .39-.23.74-.56.9-.98.49-1.87 1.12-2.66 1.85-.18.18-.43.28-.7.28-.28 0-.53-.11-.71-.29L.29 13.08a.996.996 0 0 1 0-1.41C3.42 8.73 7.48 7 12 7c4.52 0 8.58 1.73 11.71 4.67.39.39.39 1.02 0 1.41l-2.48 2.48c-.18.18-.43.29-.71.29-.27 0-.52-.11-.7-.28-.79-.74-1.69-1.36-2.67-1.85-.33-.16-.56-.5-.56-.9v-3.1C15.15 9.25 13.6 9 12 9z"/>
+                    </svg>
+                </button>
+            </div>
+        </div>
+    }
+
+    <!-- ════════════════════════════════════════════════════════════════════════ -->
+    <!-- FORUM: THREAD DETAIL & COMMENTS MODAL (BEDA DARI GRUP) -->
+    <!-- ════════════════════════════════════════════════════════════════════════ -->
+    @if (selectedThread != null)
+    {
+        <div class="wa-modal-backdrop" @onclick="CloseThreadDetail">
+            <div class="wa-forum-modal-card" @onclick:stopPropagation>
+                <!-- Detail Header -->
+                <div class="wa-forum-modal-header">
+                    <button class="wa-back-btn" @onclick="CloseThreadDetail" title="Tutup">
+                        <svg viewBox="0 0 24 24" width="22" height="22" fill="white">
+                            <path d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z"/>
+                        </svg>
+                    </button>
+                    <div style="flex:1;overflow:hidden;">
+                        <span class="wa-category-tag @GetCategoryClass(selectedThread.Category)">@selectedThread.Category</span>
+                        <h4 style="margin:2px 0 0;font-size:0.95rem;color:white;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">@selectedThread.Title</h4>
+                    </div>
+                </div>
+
+                <!-- Detail Body (Thread + Comments) -->
+                <div class="wa-forum-modal-body">
+                    <!-- Thread Original Post -->
+                    <div class="wa-forum-thread-post">
+                        <div class="wa-forum-author-row">
+                            <div class="wa-avatar wa-avatar-sm" style="background:@GetAvatarBg(selectedThread.AuthorName)">
+                                @GetInitials(selectedThread.AuthorName)
+                            </div>
+                            <div>
+                                <div class="wa-forum-author-name">
+                                    @selectedThread.AuthorName
+                                    @if (selectedThread.AuthorName.Contains("Fadhil") || selectedThread.AuthorName.Contains("Gravicode"))
+                                    {
+                                        <span class="wa-author-badge">★ DEV</span>
+                                    }
+                                </div>
+                                <div class="wa-forum-time">Diposting @FormatTimestamp(selectedThread.CreatedAt)</div>
+                            </div>
+                        </div>
+
+                        <h2 class="wa-thread-detail-title">@selectedThread.Title</h2>
+                        <div class="wa-thread-detail-content">@selectedThread.Content</div>
+
+                        @if (!string.IsNullOrWhiteSpace(selectedThread.Tags))
+                        {
+                            <div class="wa-forum-tags" style="margin-top:10px;">
+                                @foreach (var tag in selectedThread.Tags.Split(' ', StringSplitOptions.RemoveEmptyEntries))
+                                {
+                                    <span class="wa-forum-tag-chip">@tag</span>
+                                }
+                            </div>
+                        }
+
+                        <div style="margin-top:12px;display:flex;align-items:center;gap:12px;">
+                            <button class="wa-forum-upvote-btn @(selectedThread.HasUpvoted ? "upvoted" : "")" 
+                                    @onclick="() => ToggleThreadUpvote(selectedThread.Id)">
+                                <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor">
+                                    <path d="M12 4l-8 8h5v8h6v-8h5z"/>
+                                </svg>
+                                <span>▲ @selectedThread.Upvotes Dukungan Upvote</span>
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Threaded Comments Section -->
+                    <div class="wa-forum-comments-section">
+                        <div class="wa-forum-section-title">
+                            💬 Diskusi &amp; Balasan (@threadComments.Count)
+                        </div>
+
+                        @if (threadComments.Count == 0)
+                        {
+                            <div style="text-align:center;color:#8696A0;padding:20px;font-size:0.85rem;">
+                                Belum ada balasan. Jadilah yang pertama memberikan solusi atau tanggapan!
+                            </div>
+                        }
+                        else
+                        {
+                            @foreach (var c in threadComments)
+                            {
+                                <div class="wa-forum-comment-card">
+                                    <div class="wa-forum-comment-header">
+                                        <div class="wa-avatar" style="width:28px;height:28px;font-size:0.75rem;background:@GetAvatarBg(c.AuthorName)">
+                                            @GetInitials(c.AuthorName)
+                                        </div>
+                                        <div style="flex:1;">
+                                            <span style="font-weight:700;font-size:0.85rem;color:#111B21;">@c.AuthorName</span>
+                                            <span style="font-size:0.72rem;color:#8696A0;margin-left:6px;">@FormatTimestamp(c.CreatedAt)</span>
+                                        </div>
+                                    </div>
+                                    <div class="wa-forum-comment-body">
+                                        @c.Content
+                                    </div>
+                                </div>
+                            }
+                        }
+                    </div>
+                </div>
+
+                <!-- Reply Input Bar -->
+                <div class="wa-forum-reply-bar">
+                    <input class="wa-forum-reply-input" 
+                           placeholder="Tulis balasan atau saran..." 
+                           @bind="newCommentText" 
+                           @bind:event="oninput" 
+                           @onkeyup='(e) => { if (e.Key == "Enter") SubmitComment(); }' />
+                    <button class="wa-forum-send-btn" @onclick="SubmitComment" disabled="@string.IsNullOrWhiteSpace(newCommentText)">
+                        <svg viewBox="0 0 24 24" width="20" height="20" fill="white">
+                            <path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/>
+                        </svg>
+                    </button>
+                </div>
+            </div>
+        </div>
+    }
+
+    <!-- ════════════════════════════════════════════════════════════════════════ -->
+    <!-- FORUM: BUAT TOPIK BARU MODAL -->
+    <!-- ════════════════════════════════════════════════════════════════════════ -->
+    @if (showNewThreadModal)
+    {
+        <div class="wa-modal-backdrop" @onclick="() => showNewThreadModal = false">
+            <div class="wa-modal-card" @onclick:stopPropagation style="max-width:440px;">
+                <div class="wa-modal-header">
+                    <h3>📝 Buat Topik Forum Baru</h3>
+                    <button class="wa-modal-close" @onclick="() => showNewThreadModal = false">✕</button>
+                </div>
+                <div class="wa-modal-body">
+                    <label class="wa-label">Kategori Diskusi</label>
+                    <select class="wa-input" @bind="newThreadCategory">
+                        <option value="📢 Pengumuman">📢 Pengumuman Resmi</option>
+                        <option value="💡 Ide &amp; Fitur">💡 Ide &amp; Usulan Fitur</option>
+                        <option value="🛠️ Q&amp;A Teknis">🛠️ Tanya Jawab / Q&amp;A Teknis</option>
+                        <option value="💬 Diskusi Komunitas">💬 Diskusi Komunitas &amp; Santai</option>
+                    </select>
+
+                    <label class="wa-label" style="margin-top:10px;">Judul Topik</label>
+                    <input class="wa-input" @bind="newThreadTitle" placeholder="Contoh: Arsitektur .NET 10 MAUI &amp; SQLite" />
+
+                    <label class="wa-label" style="margin-top:10px;">Isi / Konten Diskusi</label>
+                    <textarea class="wa-input" style="height:90px;resize:none;" @bind="newThreadContent" placeholder="Jelaskan secara mendalam tentang topik yang ingin dibahas..."></textarea>
+
+                    <label class="wa-label" style="margin-top:10px;">Tagar (Opsional)</label>
+                    <input class="wa-input" @bind="newThreadTags" placeholder="Contoh: #dotnet10 #maui #sqlite #clevora" />
+
+                    <button class="wa-btn-primary" style="margin-top:16px;width:100%;" @onclick="SubmitNewThread" disabled="@(string.IsNullOrWhiteSpace(newThreadTitle) || string.IsNullOrWhiteSpace(newThreadContent))">
+                        🚀 Publikasikan Topik ke Forum
+                    </button>
+                </div>
+            </div>
+        </div>
+    }
+
+    <!-- ════════════════════════════════════════════════════════════════════════ -->
+    <!-- FITUR TAMBAHAN: MODAL CHAT TANPA SIMPAN NOMOR (DIRECT CHAT) -->
+    <!-- ════════════════════════════════════════════════════════════════════════ -->
+    @if (showDirectChatModal)
+    {
+        <div class="wa-modal-backdrop" @onclick="() => showDirectChatModal = false">
+            <div class="wa-modal-card" @onclick:stopPropagation>
+                <div class="wa-modal-header">
+                    <h3>✨ Kirim Chat Tanpa Simpan Kontak</h3>
+                    <button class="wa-modal-close" @onclick="() => showDirectChatModal = false">✕</button>
+                </div>
+                <div class="wa-modal-body">
+                    <p style="font-size:0.84rem;color:#667781;margin-bottom:12px;">
+                        Kirim pesan langsung ke nomor WhatsApp manapun tanpa perlu menyimpannya ke buku telepon ponsel Anda.
+                    </p>
+                    <label class="wa-label">Nomor WhatsApp Tujuan</label>
+                    <input class="wa-input" @bind="directPhoneNumber" placeholder="Contoh: 08123456789 atau 62812..." />
+
+                    <label class="wa-label" style="margin-top:10px;">Pesan Pembuka (Opsional)</label>
+                    <textarea class="wa-input" style="height:70px;resize:none;" @bind="directInitialMessage" placeholder="Halo, saya ingin menanyakan..."></textarea>
+
+                    <button class="wa-btn-primary" style="margin-top:14px;width:100%;" @onclick="StartDirectChat">
+                        Mulai Chat Sekarang 🚀
+                    </button>
+                </div>
+            </div>
+        </div>
+    }
+
+    <!-- Settings Modal -->
+    @if (showSettingsModal)
+    {
+        <div class="wa-modal-backdrop" @onclick="() => showSettingsModal = false">
+            <div class="wa-modal-card" @onclick:stopPropagation>
+                <div class="wa-modal-header">
+                    <h3>Setelan Server &amp; Sinkronisasi</h3>
+                    <button class="wa-modal-close" @onclick="() => showSettingsModal = false">✕</button>
+                </div>
+                <div class="wa-modal-body">
+                    <p style="font-size:0.85rem;color:#667781;margin-bottom:12px;">
+                        Clevora bekerja offline-first dengan SQLite lokal. Hubungkan ke server cloud untuk mengaktifkan real-time SignalR chat.
+                    </p>
+                    <label class="wa-label">URL Backend Server</label>
+                    <input class="wa-input" @bind="serverUrl" placeholder="http://10.0.2.2:5000 atau https://clevora.gravicode.com" />
+                    
+                    <div style="display:flex;gap:6px;margin-top:6px;flex-wrap:wrap;">
+                        <button type="button" style="background:#F1F5F9;border:1px solid #CBD5E1;border-radius:6px;padding:4px 8px;font-size:0.75rem;cursor:pointer;color:#334155;"
+                                @onclick='() => serverUrl = "http://localhost:5000"'>
+                            💻 PC / Desktop (localhost)
+                        </button>
+                        <button type="button" style="background:#F1F5F9;border:1px solid #CBD5E1;border-radius:6px;padding:4px 8px;font-size:0.75rem;cursor:pointer;color:#334155;"
+                                @onclick='() => serverUrl = "http://10.0.2.2:5000"'>
+                            📱 Emulator Android (10.0.2.2)
+                        </button>
+                    </div>
+
+                    <label class="wa-label" style="margin-top:10px;">Token JWT / Auth</label>
+                    <input class="wa-input" type="password" @bind="token" placeholder="Bearer eyJhbGciOi..." />
+
+                    <div class="wa-connection-badge @(isOnlineServer ? "connected" : "disconnected")">
+                        @(isOnlineServer ? "● Terhubung ke SignalR Cloud Server" : "○ Mode Offline (Database SQLite Lokal Aktif)")
+                    </div>
+
+                    <button class="wa-btn-primary" style="margin-top:14px;width:100%;" @onclick="ConnectServer">
+                        Simpan &amp; Hubungkan
+                    </button>
+                </div>
+            </div>
+        </div>
+    }
+
+    <!-- Auth & Account Switcher Modal -->
+    @if (showAuthModal)
+    {
+        <div class="wa-modal-backdrop" @onclick="() => showAuthModal = false">
+            <div class="wa-modal-card" @onclick:stopPropagation style="max-height:85vh;overflow-y:auto;">
+                <div class="wa-modal-header">
+                    <h3>👤 Akun &amp; Otentikasi Clevora</h3>
+                    <button class="wa-modal-close" @onclick="() => showAuthModal = false">✕</button>
+                </div>
+                <div class="wa-modal-body">
+                    <div style="background:#F0FDF4;border:1px solid #86EFAC;border-radius:10px;padding:10px;margin-bottom:12px;">
+                        <div style="font-size:0.75rem;color:#16A34A;font-weight:700;">PROFIL AKTIF SAAT INI</div>
+                        <div style="font-size:0.95rem;font-weight:700;color:#111B21;margin-top:2px;">@currentUserName</div>
+                        <div style="font-size:0.8rem;color:#667781;">@currentUserEmail</div>
+                        <div class="wa-connection-badge @(isOnlineServer ? "connected" : "disconnected")" style="margin-top:6px;">
+                            @(isOnlineServer ? "● Terhubung ke Server (JWT Aktif)" : "○ Mode Offline (Lokal SQLite Aktif)")
+                        </div>
+                    </div>
+
+                    <div style="font-weight:700;font-size:0.85rem;color:#111B21;margin-bottom:6px;">🚀 Masuk Cepat (Demo Chat Gravicode):</div>
+                    <div style="display:flex;flex-direction:column;gap:6px;margin-bottom:14px;">
+                        <button type="button" class="wa-btn-primary" style="background:#008069;text-align:left;padding:8px 12px;font-size:0.82rem;"
+                                @onclick='() => QuickLogin("fadhil@gravicode.com", "Password123!", "Kang Fadhil (Gravicode Studios)")'>
+                            🟢 Masuk sebagai Kang Fadhil (fadhil@gravicode.com)
+                        </button>
+                        <button type="button" class="wa-btn-primary" style="background:#0284C7;text-align:left;padding:8px 12px;font-size:0.82rem;"
+                                @onclick='() => QuickLogin("user@clevora.com", "Password123!", "Pengguna Demo")'>
+                            🔵 Masuk sebagai Pengguna Demo (user@clevora.com)
+                        </button>
+                        <button type="button" class="wa-btn-primary" style="background:#7C3AED;text-align:left;padding:8px 12px;font-size:0.82rem;"
+                                @onclick='() => QuickLogin("budisantoso@gravicode.com", "Password123!", "Budi Santoso")'>
+                            🟣 Masuk sebagai Budi Santoso (budisantoso@gravicode.com)
+                        </button>
+                        <button type="button" class="wa-btn-primary" style="background:#EA580C;text-align:left;padding:8px 12px;font-size:0.82rem;"
+                                @onclick='() => QuickLogin("iruzzz@gravicode.com", "Password123!", "Iruzzz67 (DevOps)")'>
+                            🟠 Masuk sebagai Iruzzz67 (iruzzz@gravicode.com)
+                        </button>
+                    </div>
+
+                    <div style="display:flex;gap:8px;border-bottom:1px solid #E2E8F0;margin-bottom:10px;">
+                        <button type="button" style="border:none;background:none;font-weight:700;font-size:0.85rem;padding:6px 0;color:@(authTab == "login" ? "#008069" : "#64748B");border-bottom:@(authTab == "login" ? "2px solid #008069" : "none");cursor:pointer;"
+                                @onclick='() => authTab = "login"'>
+                            Masuk / Login
+                        </button>
+                        <button type="button" style="border:none;background:none;font-weight:700;font-size:0.85rem;padding:6px 0;color:@(authTab == "register" ? "#008069" : "#64748B");border-bottom:@(authTab == "register" ? "2px solid #008069" : "none");cursor:pointer;"
+                                @onclick='() => authTab = "register"'>
+                            Daftar Akun Baru
+                        </button>
+                    </div>
+
+                    @if (!string.IsNullOrEmpty(authErrorMessage))
+                    {
+                        <div style="background:#FEE2E2;border:1px solid #FCA5A5;color:#B91C1C;padding:8px;border-radius:6px;font-size:0.8rem;margin-bottom:10px;">
+                            @authErrorMessage
+                        </div>
+                    }
+
+                    @if (authTab == "login")
+                    {
+                        <label class="wa-label">Email / Nama Pengguna / ID Akun</label>
+                        <input class="wa-input" @bind="authEmail" placeholder="nama / email / ID akun" />
+
+                        <label class="wa-label" style="margin-top:8px;">Password</label>
+                        <input class="wa-input" type="password" @bind="authPassword" placeholder="Password akun (default: Password123!)" />
+
+                        <button class="wa-btn-primary" style="margin-top:12px;width:100%;" @onclick="PerformLoginAsync">
+                            Masuk ke Akun
+                        </button>
+                    }
+                    else
+                    {
+                        <label class="wa-label">Nama Lengkap / Tampilan</label>
+                        <input class="wa-input" @bind="authDisplayName" placeholder="Contoh: Siti Rahma / Budi Santoso" />
+
+                        <label class="wa-label" style="margin-top:8px;">Email / Nama Pengguna / ID Akun</label>
+                        <input class="wa-input" @bind="authEmail" placeholder="nama / email / ID akun" />
+
+                        <label class="wa-label" style="margin-top:8px;">Password</label>
+                        <input class="wa-input" type="password" @bind="authPassword" placeholder="Minimal 6 karakter" />
+
+                        <button class="wa-btn-primary" style="margin-top:12px;width:100%;background:#0284C7;" @onclick="PerformRegisterAsync">
+                            Daftar &amp; Masuk Otomatis
+                        </button>
+                    }
+
+                    <hr style="margin:14px 0 10px;border-top:1px solid #E2E8F0;" />
+                    <button type="button" class="wa-btn-primary" style="background:#64748B;width:100%;font-size:0.8rem;padding:8px;"
+                            @onclick="SwitchToOfflineMode">
+                        📶 Beralih ke Mode Offline Mandiri (Tanpa Server)
+                    </button>
+                </div>
+            </div>
+        </div>
+    }
+
+    <!-- About Modal -->
+    @if (showAboutModal)
+    {
+        <div class="wa-modal-backdrop" @onclick="() => showAboutModal = false">
+            <div class="wa-modal-card" @onclick:stopPropagation>
+                <div class="wa-modal-header">
+                    <h3>Tentang Clevora WhatsApp</h3>
+                    <button class="wa-modal-close" @onclick="() => showAboutModal = false">✕</button>
+                </div>
+                <div class="wa-modal-body" style="text-align:center;">
+                    <div style="font-size:3rem;margin-bottom:8px;">🟢</div>
+                    <h2 style="font-size:1.3rem;font-weight:700;color:#008069;">Clevora Mobile v1.0.0</h2>
+                    <p style="font-size:0.9rem;color:#111B21;margin:8px 0;font-weight:600;">
+                        WhatsApp Full Experience + AI Copilot Platform
+                    </p>
+                    <p style="font-size:0.82rem;color:#667781;line-height:1.5;">
+                        Dibuat oleh <strong>Gravicode Studios</strong> dipimpin oleh <em>Kang Fadhil</em>.<br/>
+                        Teknologi: .NET 10 LTS, MAUI Blazor Hybrid, SQLite Offline-First, SignalR Core.
+                    </p>
+                    <div style="margin-top:16px;padding:10px;background:#F0F2F5;border-radius:8px;font-size:0.78rem;color:#54656F;">
+                        © 2026 Gravicode Studios. Hak Cipta Dilindungi.
+                    </div>
+                </div>
+            </div>
+        </div>
+    }
 </div>
 
+<style>
+    .wa-app-container {
+        display: flex;
+        flex-direction: column;
+        height: 100vh;
+        width: 100vw;
+        background: #FFFFFF;
+        overflow: hidden;
+        position: relative;
+    }
+
+    /* WhatsApp Header */
+    .wa-header {
+        background-color: var(--wa-teal);
+        color: #FFFFFF;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.18);
+        z-index: 10;
+        flex-shrink: 0;
+    }
+    .wa-header-top {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 14px 16px 8px 16px;
+    }
+    .wa-logo {
+        font-size: 1.3rem;
+        font-weight: 700;
+        letter-spacing: 0.3px;
+        margin: 0;
+    }
+    .wa-header-actions {
+        display: flex;
+        align-items: center;
+        gap: 16px;
+    }
+    .wa-icon-btn {
+        background: none;
+        border: none;
+        color: #FFFFFF;
+        cursor: pointer;
+        padding: 4px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+
+    /* Search bar */
+    .wa-search-bar {
+        display: flex;
+        align-items: center;
+        background: #FFFFFF;
+        margin: 4px 12px 10px 12px;
+        padding: 4px 12px;
+        border-radius: 24px;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.15);
+    }
+    .wa-search-input {
+        flex: 1;
+        border: none;
+        outline: none;
+        font-size: 0.95rem;
+        padding: 6px 4px;
+        color: #111B21;
+    }
+    .wa-search-clear {
+        background: none;
+        border: none;
+        color: #8696A0;
+        font-size: 1rem;
+        cursor: pointer;
+    }
+
+    /* Tabs */
+    .wa-tabs {
+        display: flex;
+        align-items: center;
+        border-bottom: 2px solid transparent;
+    }
+    .wa-tab-item {
+        flex: 1;
+        background: none;
+        border: none;
+        color: var(--wa-tab-inactive);
+        font-size: 0.86rem;
+        font-weight: 700;
+        letter-spacing: 0.5px;
+        padding: 10px 4px;
+        text-align: center;
+        position: relative;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 6px;
+        transition: color 0.15s ease;
+    }
+    .wa-tab-item.active {
+        color: var(--wa-tab-active);
+        border-bottom: 3.5px solid #FFFFFF;
+    }
+    .wa-tab-community {
+        flex: 0 0 46px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+    .wa-tab-badge {
+        background: #FFFFFF;
+        color: var(--wa-teal);
+        border-radius: 12px;
+        padding: 1px 6px;
+        font-size: 0.72rem;
+        font-weight: 800;
+    }
+    .wa-tab-dot {
+        width: 7px;
+        height: 7px;
+        background: #25D366;
+        border: 1.5px solid #FFFFFF;
+        border-radius: 50%;
+        display: inline-block;
+    }
+
+    /* Dropdown menu */
+    .wa-menu-backdrop {
+        position: fixed;
+        inset: 0;
+        z-index: 50;
+    }
+    .wa-menu-dropdown {
+        position: absolute;
+        top: 50px;
+        right: 12px;
+        background: #FFFFFF;
+        border-radius: 6px;
+        box-shadow: 0 4px 14px rgba(0,0,0,0.22);
+        z-index: 60;
+        min-width: 210px;
+        padding: 6px 0;
+        animation: fadeIn 0.1s ease;
+    }
+    .wa-menu-item {
+        padding: 12px 18px;
+        font-size: 0.92rem;
+        color: #111B21;
+        cursor: pointer;
+    }
+    .wa-menu-item:active {
+        background: #F0F2F5;
+    }
+    .wa-menu-credit {
+        border-top: 1px solid #E9EDEF;
+        color: var(--wa-teal);
+        font-weight: 600;
+    }
+
+    /* Main body */
+    .wa-main-content {
+        flex: 1;
+        overflow-y: auto;
+        background: #FFFFFF;
+        position: relative;
+    }
+
+    /* Exclusive Banner */
+    .wa-exclusive-banner {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        padding: 10px 16px;
+        background: #F0FDF4;
+        border-bottom: 1px solid #DCFCE7;
+        cursor: pointer;
+    }
+    .wa-banner-icon {
+        font-size: 1.3rem;
+    }
+
+    /* Chat List */
+    .wa-chat-list {
+        display: flex;
+        flex-direction: column;
+    }
+    .wa-chat-row {
+        display: flex;
+        align-items: center;
+        padding: 12px 16px;
+        cursor: pointer;
+        gap: 14px;
+        transition: background 0.1s ease;
+    }
+    .wa-chat-row:active {
+        background: #F0F2F5;
+    }
+    .wa-avatar-container {
+        position: relative;
+        flex-shrink: 0;
+    }
+    .wa-avatar {
+        width: 50px;
+        height: 50px;
+        border-radius: 50%;
+        color: #FFFFFF;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-weight: 700;
+        font-size: 1.1rem;
+        box-shadow: 0 1px 2px rgba(0,0,0,0.1);
+    }
+    .wa-avatar-my {
+        background: #00A884;
+    }
+    .wa-online-indicator {
+        position: absolute;
+        bottom: 1px;
+        right: 1px;
+        width: 13px;
+        height: 13px;
+        background: #25D366;
+        border: 2px solid #FFFFFF;
+        border-radius: 50%;
+    }
+    .wa-chat-details {
+        flex: 1;
+        overflow: hidden;
+        border-bottom: 1px solid #F0F2F5;
+        padding-bottom: 10px;
+    }
+    .wa-chat-top-row {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 4px;
+    }
+    .wa-contact-name {
+        font-size: 1rem;
+        font-weight: 600;
+        color: #111B21;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+    .wa-timestamp {
+        font-size: 0.75rem;
+        color: #667781;
+        flex-shrink: 0;
+    }
+    .wa-timestamp.highlight {
+        color: #25D366;
+        font-weight: 600;
+    }
+    .wa-chat-bottom-row {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
+    .wa-message-snippet {
+        font-size: 0.86rem;
+        color: #667781;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        display: flex;
+        align-items: center;
+        gap: 4px;
+    }
+    .wa-tick {
+        color: var(--wa-blue-tick);
+        font-size: 0.8rem;
+        font-weight: bold;
+    }
+    .wa-unread-badge {
+        background: #25D366;
+        color: #FFFFFF;
+        font-size: 0.72rem;
+        font-weight: 700;
+        border-radius: 12px;
+        min-width: 20px;
+        height: 20px;
+        padding: 0 5px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+
+    /* FABs */
+    .wa-fab {
+        position: fixed;
+        bottom: 24px;
+        right: 20px;
+        width: 56px;
+        height: 56px;
+        border-radius: 50%;
+        background: var(--wa-green-btn);
+        color: #FFFFFF;
+        border: none;
+        box-shadow: 0 4px 10px rgba(0,0,0,0.3);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        cursor: pointer;
+        z-index: 20;
+    }
+    .wa-fab:active {
+        transform: scale(0.96);
+    }
+    .wa-status-fabs {
+        position: fixed;
+        bottom: 24px;
+        right: 20px;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 14px;
+        z-index: 20;
+    }
+    .wa-fab-mini {
+        width: 44px;
+        height: 44px;
+        border-radius: 50%;
+        background: #F0F2F5;
+        border: none;
+        box-shadow: 0 2px 6px rgba(0,0,0,0.2);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        cursor: pointer;
+    }
+
+    /* Status Tab */
+    .wa-status-list {
+        display: flex;
+        flex-direction: column;
+    }
+    .wa-my-status-row {
+        display: flex;
+        align-items: center;
+        gap: 14px;
+        padding: 14px 16px;
+        cursor: pointer;
+    }
+    .wa-my-status-avatar-box {
+        position: relative;
+    }
+    .wa-add-status-plus {
+        position: absolute;
+        bottom: 0;
+        right: 0;
+        width: 20px;
+        height: 20px;
+        background: #00A884;
+        color: white;
+        border: 2px solid white;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1rem;
+        font-weight: 800;
+    }
+    .wa-status-details {
+        flex: 1;
+    }
+    .wa-status-name {
+        font-size: 0.98rem;
+        font-weight: 600;
+        color: #111B21;
+    }
+    .wa-status-sub {
+        font-size: 0.82rem;
+        color: #667781;
+        margin-top: 2px;
+    }
+    .wa-status-section-header {
+        font-size: 0.8rem;
+        font-weight: 700;
+        color: #667781;
+        padding: 10px 16px 6px 16px;
+        background: #F0F2F5;
+        text-transform: uppercase;
+        letter-spacing: 0.4px;
+    }
+    .wa-status-row {
+        display: flex;
+        align-items: center;
+        gap: 14px;
+        padding: 12px 16px;
+        cursor: pointer;
+    }
+    .wa-status-ring {
+        border: 2.5px solid #25D366;
+        border-radius: 50%;
+        padding: 2px;
+    }
+    .wa-status-ring.viewed {
+        border-color: #CBD5E1;
+    }
+
+    /* Calls Tab */
+    .wa-call-list {
+        display: flex;
+        flex-direction: column;
+    }
+    .wa-call-link-row {
+        display: flex;
+        align-items: center;
+        gap: 14px;
+        padding: 14px 16px;
+        cursor: pointer;
+    }
+    .wa-call-link-avatar {
+        width: 50px;
+        height: 50px;
+        border-radius: 50%;
+        background: #00A884;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+    .wa-call-row {
+        display: flex;
+        align-items: center;
+        gap: 14px;
+        padding: 12px 16px;
+        border-bottom: 1px solid #F0F2F5;
+    }
+    .wa-call-arrow {
+        font-weight: 800;
+        font-size: 0.9rem;
+    }
+    .wa-call-arrow.incoming { color: #25D366; }
+    .wa-call-arrow.outgoing { color: #53BDEB; }
+    .wa-call-arrow.missed { color: #DC2626; }
+    .wa-call-action-btn {
+        background: none;
+        border: none;
+        cursor: pointer;
+        padding: 6px;
+    }
+
+    /* ══════════ STORY OVERLAY ══════════ */
+    .wa-story-overlay {
+        position: fixed;
+        inset: 0;
+        z-index: 1000;
+        display: flex;
+        flex-direction: column;
+        color: white;
+    }
+    .wa-story-progress-container {
+        display: flex;
+        padding: 8px 12px;
+        background: rgba(0,0,0,0.25);
+    }
+    .wa-story-progress-bar {
+        height: 3px;
+        background: white;
+        border-radius: 2px;
+        transition: width 0.1s linear;
+    }
+    .wa-story-header {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        padding: 6px 14px;
+        background: rgba(0,0,0,0.2);
+    }
+    .wa-story-close {
+        background: none;
+        border: none;
+        color: white;
+        font-size: 1.3rem;
+        cursor: pointer;
+        padding: 4px;
+    }
+    .wa-story-user-meta {
+        flex: 1;
+    }
+    .wa-story-user-name {
+        font-weight: 700;
+        font-size: 0.95rem;
+    }
+    .wa-story-time {
+        font-size: 0.74rem;
+        opacity: 0.8;
+    }
+    .wa-story-content {
+        flex: 1;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 24px;
+        position: relative;
+    }
+    .wa-story-text {
+        font-size: 1.5rem;
+        font-weight: 600;
+        text-align: center;
+        line-height: 1.45;
+        max-width: 500px;
+        z-index: 5;
+    }
+    .wa-story-tap-left, .wa-story-tap-right {
+        position: absolute;
+        top: 0;
+        bottom: 0;
+        width: 35%;
+        z-index: 10;
+        cursor: pointer;
+    }
+    .wa-story-tap-left { left: 0; }
+    .wa-story-tap-right { right: 0; }
+    .wa-story-footer {
+        padding: 12px 16px;
+        background: rgba(0,0,0,0.3);
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        z-index: 20;
+    }
+    .wa-story-reply-input {
+        flex: 1;
+        background: rgba(255,255,255,0.2);
+        border: 1px solid rgba(255,255,255,0.4);
+        border-radius: 20px;
+        color: white;
+        padding: 8px 14px;
+        outline: none;
+        font-size: 0.9rem;
+    }
+    .wa-story-reply-input::placeholder { color: rgba(255,255,255,0.7); }
+    .wa-story-send-btn {
+        background: var(--wa-green-btn);
+        border: none;
+        border-radius: 50%;
+        width: 38px;
+        height: 38px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        cursor: pointer;
+    }
+
+    /* ══════════ STATUS CREATOR ══════════ */
+    .wa-status-creator-screen {
+        position: fixed;
+        inset: 0;
+        z-index: 999;
+        display: flex;
+        flex-direction: column;
+        padding: 16px;
+    }
+    .wa-status-creator-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+    }
+    .wa-color-palette {
+        display: flex;
+        gap: 8px;
+    }
+    .wa-color-dot {
+        width: 24px;
+        height: 24px;
+        border-radius: 50%;
+        border: 2px solid white;
+        cursor: pointer;
+    }
+    .wa-color-dot.selected {
+        transform: scale(1.2);
+        box-shadow: 0 0 6px white;
+    }
+    .wa-status-creator-input {
+        flex: 1;
+        background: transparent;
+        border: none;
+        outline: none;
+        color: white;
+        font-size: 1.6rem;
+        font-weight: 600;
+        text-align: center;
+        resize: none;
+        margin-top: 30%;
+        font-family: inherit;
+    }
+    .wa-status-creator-input::placeholder { color: rgba(255,255,255,0.6); }
+
+    /* ══════════ CALL SCREEN ══════════ */
+    .wa-call-screen {
+        position: fixed;
+        inset: 0;
+        z-index: 1000;
+        background: #111B21;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: space-between;
+        padding: 48px 24px 40px 24px;
+        color: white;
+    }
+    .wa-call-screen-header {
+        text-align: center;
+    }
+    .wa-call-encryption {
+        font-size: 0.78rem;
+        color: #8696A0;
+        margin-bottom: 8px;
+    }
+    .wa-call-contact-name {
+        font-size: 1.45rem;
+        font-weight: 700;
+    }
+    .wa-call-status-label {
+        font-size: 0.95rem;
+        color: #A7F3D0;
+        margin-top: 4px;
+    }
+    .wa-call-avatar-center {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+    .wa-call-controls {
+        display: flex;
+        align-items: center;
+        gap: 24px;
+    }
+    .wa-call-round-btn {
+        width: 52px;
+        height: 52px;
+        border-radius: 50%;
+        background: rgba(255,255,255,0.15);
+        border: none;
+        color: white;
+        font-size: 1.4rem;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        cursor: pointer;
+    }
+    .wa-call-round-btn.active {
+        background: white;
+        color: #111B21;
+    }
+    .wa-call-end-btn {
+        width: 62px;
+        height: 62px;
+        border-radius: 50%;
+        background: #DC2626;
+        border: none;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        cursor: pointer;
+        box-shadow: 0 4px 10px rgba(220,38,38,0.4);
+    }
+
+    /* Modals & General */
+    .wa-modal-backdrop {
+        position: fixed;
+        inset: 0;
+        background: rgba(0,0,0,0.5);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 20px;
+        z-index: 100;
+    }
+    .wa-modal-card {
+        background: #FFFFFF;
+        border-radius: 12px;
+        width: 100%;
+        max-width: 380px;
+        overflow: hidden;
+        box-shadow: 0 8px 24px rgba(0,0,0,0.25);
+    }
+    .wa-modal-header {
+        background: var(--wa-teal);
+        color: #FFFFFF;
+        padding: 14px 18px;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
+    .wa-modal-header h3 {
+        font-size: 1rem;
+        margin: 0;
+    }
+    .wa-modal-close {
+        background: none;
+        border: none;
+        color: white;
+        font-size: 1.1rem;
+        cursor: pointer;
+    }
+    .wa-modal-body {
+        padding: 18px;
+        text-align: left;
+    }
+    .wa-label {
+        display: block;
+        font-size: 0.8rem;
+        font-weight: 600;
+        color: #334155;
+        margin-bottom: 4px;
+    }
+    .wa-input {
+        width: 100%;
+        padding: 10px 12px;
+        border: 1px solid #CBD5E1;
+        border-radius: 8px;
+        font-size: 0.88rem;
+        outline: none;
+    }
+    .wa-btn-primary {
+        background: var(--wa-green-btn);
+        color: #FFFFFF;
+        border: none;
+        border-radius: 20px;
+        padding: 10px 24px;
+        font-weight: 700;
+        font-size: 0.9rem;
+        cursor: pointer;
+    }
+    .wa-connection-badge {
+        margin-top: 10px;
+        padding: 8px 10px;
+        border-radius: 6px;
+        font-size: 0.78rem;
+        font-weight: 600;
+    }
+    .wa-connection-badge.connected { background: #D1FAE5; color: #065F46; }
+    .wa-connection-badge.disconnected { background: #FEF3C7; color: #92400E; }
+    .wa-community-view { padding: 32px 20px; text-align: center; }
+    .wa-community-hero { display: flex; flex-direction: column; align-items: center; gap: 12px; }
+    .wa-community-icon-box { font-size: 3.5rem; }
+    .wa-empty-state { text-align: center; padding: 48px 24px; color: #8696A0; }
+    .wa-empty-icon { font-size: 3rem; margin-bottom: 12px; }
+
+    /* ══════════ VIDEO CALL ENHANCEMENTS ══════════ */
+    .wa-call-screen.video-mode {
+        background: #0B141A;
+        padding: 36px 16px 36px 16px;
+    }
+    .wa-video-call-remote {
+        position: relative;
+        width: 100%;
+        flex: 1;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        margin: 16px 0;
+        border-radius: 16px;
+        overflow: hidden;
+        background: #1F2C34;
+        box-shadow: 0 4px 20px rgba(0,0,0,0.5);
+    }
+    .wa-video-feed-simulation {
+        width: 100%;
+        height: 100%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        position: relative;
+    }
+    .wa-simulated-webcam {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 12px;
+    }
+    .wa-avatar-video-pulse {
+        animation: videoPulse 2s infinite ease-in-out;
+        box-shadow: 0 0 25px rgba(37,211,102,0.4);
+    }
+    @@keyframes videoPulse {
+        0% { transform: scale(0.98); }
+        50% { transform: scale(1.02); }
+        100% { transform: scale(0.98); }
+    }
+    .wa-video-live-badge {
+        background: rgba(0,0,0,0.6);
+        color: #25D366;
+        padding: 3px 10px;
+        border-radius: 12px;
+        font-size: 0.75rem;
+        font-weight: 700;
+        letter-spacing: 0.5px;
+    }
+    .wa-video-partner-name {
+        font-size: 1.1rem;
+        font-weight: 600;
+        color: #FFFFFF;
+    }
+    .wa-video-camera-off {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+    }
+    .wa-pip-window {
+        position: absolute;
+        top: 14px;
+        right: 14px;
+        width: 100px;
+        height: 135px;
+        background: #2A3942;
+        border: 2px solid rgba(255,255,255,0.4);
+        border-radius: 12px;
+        overflow: hidden;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: space-between;
+        padding: 6px 4px;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.4);
+        z-index: 5;
+    }
+    .wa-pip-camera-preview {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 4px;
+    }
+    .wa-pip-label {
+        font-size: 0.65rem;
+        color: #A7F3D0;
+        font-weight: 600;
+        text-align: center;
+    }
+    .wa-pip-avatar {
+        width: 38px;
+        height: 38px;
+        border-radius: 50%;
+        background: #008069;
+        color: white;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 0.75rem;
+        font-weight: 700;
+    }
+    .wa-pip-flip-btn {
+        background: rgba(0,0,0,0.5);
+        border: none;
+        color: white;
+        border-radius: 20px;
+        padding: 2px 8px;
+        font-size: 0.75rem;
+        cursor: pointer;
+    }
+
+    /* ══════════ FORUM KOMUNITAS (BEDA DARI GRUP) ══════════ */
+    .wa-forum-container {
+        display: flex;
+        flex-direction: column;
+        height: 100%;
+        background: #F0F2F5;
+        overflow-y: auto;
+    }
+    .wa-forum-header-banner {
+        background: linear-gradient(135deg, #075E54 0%, #008069 100%);
+        color: white;
+        padding: 16px 18px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+    .wa-forum-badge {
+        display: inline-block;
+        background: rgba(255,255,255,0.2);
+        color: #D1FAE5;
+        font-size: 0.68rem;
+        font-weight: 800;
+        letter-spacing: 0.8px;
+        padding: 2px 8px;
+        border-radius: 10px;
+        margin-bottom: 4px;
+    }
+    .wa-forum-title {
+        font-size: 1.15rem;
+        font-weight: 700;
+        margin: 0;
+    }
+    .wa-forum-subtitle {
+        font-size: 0.78rem;
+        color: #E2E8F0;
+        margin: 4px 0 0;
+        line-height: 1.35;
+    }
+    .wa-forum-btn-new {
+        background: #25D366;
+        color: #111B21;
+        border: none;
+        border-radius: 20px;
+        padding: 8px 14px;
+        font-weight: 700;
+        font-size: 0.82rem;
+        cursor: pointer;
+        white-space: nowrap;
+        box-shadow: 0 2px 6px rgba(0,0,0,0.2);
+    }
+    .wa-forum-categories {
+        display: flex;
+        gap: 8px;
+        padding: 10px 14px;
+        background: #FFFFFF;
+        border-bottom: 1px solid #E2E8F0;
+        overflow-x: auto;
+        white-space: nowrap;
+    }
+    .wa-forum-pill {
+        border: 1px solid #E2E8F0;
+        background: #F8FAFC;
+        color: #475569;
+        font-size: 0.78rem;
+        font-weight: 600;
+        padding: 5px 12px;
+        border-radius: 16px;
+        cursor: pointer;
+        transition: all 0.15s ease;
+    }
+    .wa-forum-pill.active {
+        background: #008069;
+        color: #FFFFFF;
+        border-color: #008069;
+    }
+    .wa-forum-thread-list {
+        padding: 12px;
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+    }
+    .wa-forum-card {
+        background: #FFFFFF;
+        border-radius: 12px;
+        padding: 14px 16px;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+        cursor: pointer;
+        border: 1px solid #E2E8F0;
+        transition: transform 0.1s ease, box-shadow 0.1s ease;
+    }
+    .wa-forum-card:active {
+        transform: translateY(1px);
+        background: #F8FAFC;
+    }
+    .wa-forum-card-top {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 8px;
+    }
+    .wa-category-tag {
+        font-size: 0.72rem;
+        font-weight: 700;
+        padding: 2px 8px;
+        border-radius: 12px;
+    }
+    .wa-cat-announcement { background: #FEF3C7; color: #92400E; }
+    .wa-cat-idea { background: #E0E7FF; color: #4338CA; }
+    .wa-cat-qa { background: #DCFCE7; color: #166534; }
+    .wa-cat-general { background: #F1F5F9; color: #334155; }
+    .wa-forum-time {
+        font-size: 0.72rem;
+        color: #94A3B8;
+    }
+    .wa-forum-author-row {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        margin-bottom: 8px;
+    }
+    .wa-avatar-sm {
+        width: 28px !important;
+        height: 28px !important;
+        font-size: 0.75rem !important;
+    }
+    .wa-forum-author-name {
+        font-size: 0.82rem;
+        font-weight: 600;
+        color: #1E293B;
+        display: flex;
+        align-items: center;
+        gap: 4px;
+    }
+    .wa-author-badge {
+        background: #008069;
+        color: white;
+        font-size: 0.62rem;
+        font-weight: 800;
+        padding: 1px 5px;
+        border-radius: 8px;
+    }
+    .wa-forum-card-title {
+        font-size: 1rem;
+        font-weight: 700;
+        color: #0F172A;
+        margin: 0 0 6px 0;
+        line-height: 1.35;
+    }
+    .wa-forum-card-content {
+        font-size: 0.84rem;
+        color: #475569;
+        margin: 0 0 10px 0;
+        line-height: 1.4;
+        display: -webkit-box;
+        -webkit-line-clamp: 2;
+        -webkit-box-orient: vertical;
+        overflow: hidden;
+    }
+    .wa-forum-tags {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 4px;
+        margin-bottom: 10px;
+    }
+    .wa-forum-tag-chip {
+        background: #EFF6FF;
+        color: #1D4ED8;
+        font-size: 0.72rem;
+        font-weight: 600;
+        padding: 2px 7px;
+        border-radius: 6px;
+    }
+    .wa-forum-card-footer {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        border-top: 1px solid #F1F5F9;
+        padding-top: 10px;
+    }
+    .wa-forum-upvote-btn {
+        display: flex;
+        align-items: center;
+        gap: 4px;
+        background: #F8FAFC;
+        border: 1px solid #CBD5E1;
+        color: #475569;
+        padding: 4px 10px;
+        border-radius: 14px;
+        font-size: 0.78rem;
+        font-weight: 700;
+        cursor: pointer;
+    }
+    .wa-forum-upvote-btn.upvoted {
+        background: #DCFCE7;
+        color: #166534;
+        border-color: #86EFAC;
+    }
+    .wa-forum-replies-badge {
+        display: flex;
+        align-items: center;
+        font-size: 0.78rem;
+        color: #64748B;
+        font-weight: 500;
+    }
+    .wa-forum-read-more {
+        margin-left: auto;
+        font-size: 0.78rem;
+        color: #008069;
+        font-weight: 600;
+    }
+
+    /* Forum Modal Card */
+    .wa-forum-modal-card {
+        background: #FFFFFF;
+        border-radius: 14px;
+        width: 100%;
+        max-width: 520px;
+        height: 85vh;
+        display: flex;
+        flex-direction: column;
+        overflow: hidden;
+        box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+    }
+    .wa-forum-modal-header {
+        background: #008069;
+        color: white;
+        padding: 12px 16px;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+    }
+    .wa-forum-modal-body {
+        flex: 1;
+        overflow-y: auto;
+        padding: 16px;
+        background: #F8FAFC;
+    }
+    .wa-forum-thread-post {
+        background: white;
+        border-radius: 12px;
+        padding: 16px;
+        border: 1px solid #E2E8F0;
+        margin-bottom: 16px;
+    }
+    .wa-thread-detail-title {
+        font-size: 1.15rem;
+        font-weight: 700;
+        color: #0F172A;
+        margin: 10px 0 8px;
+    }
+    .wa-thread-detail-content {
+        font-size: 0.9rem;
+        color: #334155;
+        line-height: 1.5;
+        white-space: pre-wrap;
+    }
+    .wa-forum-section-title {
+        font-size: 0.88rem;
+        font-weight: 700;
+        color: #1E293B;
+        margin-bottom: 10px;
+    }
+    .wa-forum-comment-card {
+        background: white;
+        border-radius: 10px;
+        padding: 10px 12px;
+        border: 1px solid #E2E8F0;
+        margin-bottom: 8px;
+    }
+    .wa-forum-comment-header {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        margin-bottom: 4px;
+    }
+    .wa-forum-comment-body {
+        font-size: 0.85rem;
+        color: #334155;
+        line-height: 1.4;
+        margin-left: 36px;
+    }
+    .wa-forum-reply-bar {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 10px 14px;
+        background: white;
+        border-top: 1px solid #E2E8F0;
+    }
+    .wa-forum-reply-input {
+        flex: 1;
+        border: 1px solid #CBD5E1;
+        border-radius: 20px;
+        padding: 8px 14px;
+        font-size: 0.88rem;
+        outline: none;
+    }
+    .wa-forum-send-btn {
+        background: #008069;
+        border: none;
+        border-radius: 50%;
+        width: 38px;
+        height: 38px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        cursor: pointer;
+    }
+    .wa-forum-send-btn:disabled {
+        background: #CBD5E1;
+        cursor: not-allowed;
+    }
+
+    @@keyframes fadeIn {
+        from { opacity: 0; transform: translateY(-6px); }
+        to { opacity: 1; transform: translateY(0); }
+    }
+</style>
+
 @code {
-    private int templateCount;
-    private int categoryCount;
-    private int pendingCount;
-    private List<LocalTemplate> favorites = [];
+    private string activeTab = "chats";
+    private bool isSearching = false;
+    private string searchQuery = "";
+    private bool showMenu = false;
+    private bool showSettingsModal = false;
+    private bool showAboutModal = false;
+    private bool showDirectChatModal = false;
+    private bool showAuthModal = false;
+
+    // Auth state
+    private string authTab = "login";
+    private string authEmail = "";
+    private string authPassword = "";
+    private string authDisplayName = "";
+    private string authErrorMessage = "";
+    private string currentUserName = "Kang Fadhil (Gravicode Studios)";
+    private string currentUserEmail = "fadhil@gravicode.com";
+
+    private List<LocalConversation> conversations = [];
+    private List<LocalStatus> recentStatuses = [];
+    private LocalStatus? myStatus;
+    private List<LocalCall> callLogs = [];
+
+    private string serverUrl = "https://clevora.gravicode.com";
+    private string token = "";
+    private bool isOnlineServer = false;
+
+    // Direct chat
+    private string directPhoneNumber = "";
+    private string directInitialMessage = "";
+
+    // Story viewer state
+    private LocalStatus? activeStory;
+    private int currentStoryIndex = 0;
+    private double storyProgress = 0;
+    private System.Threading.Timer? storyTimer;
+    private string storyReplyText = "";
+
+    // Status Creator state
+    private bool showStatusCreator = false;
+    private string newStatusText = "";
+    private string creatorBgColor = "#075E54";
+    private string[] statusPalette = { "#075E54", "#1E40AF", "#7C3AED", "#BE185D", "#B45309", "#374151" };
+
+    // Calling screen state
+    private bool isCallActive = false;
+    private string activeCallContact = "";
+    private string activeCallStatus = "Memanggil...";
+    private bool isVideoCall = false;
+    private bool isSpeakerOn = false;
+    private bool isVideoMuted = false;
+    private bool isMicMuted = false;
+    private System.Threading.Timer? callDurationTimer;
+    private int callSeconds = 0;
+    private bool isFrontCamera = true;
+
+    // Forum Komunitas state (Beda dari chat grup)
+    private string activeForumCategory = "Semua";
+    private readonly string[] forumCategories = { "Semua", "📢 Pengumuman", "💡 Ide & Fitur", "🛠️ Q&A Teknis", "💬 Diskusi Komunitas" };
+    private List<LocalForumThread> forumThreads = [];
+    private LocalForumThread? selectedThread;
+    private List<LocalForumComment> threadComments = [];
+    private string newCommentText = "";
+    private bool showNewThreadModal = false;
+    private string newThreadCategory = "💡 Ide & Fitur";
+    private string newThreadTitle = "";
+    private string newThreadContent = "";
+    private string newThreadTags = "";
+
+    private int TotalUnreadCount => conversations.Sum(c => c.UnreadCount);
+
+    private List<LocalConversation> filteredConversations =>
+        string.IsNullOrWhiteSpace(searchQuery)
+            ? conversations
+            : conversations.Where(c => c.Name.Contains(searchQuery, StringComparison.OrdinalIgnoreCase) ||
+                                       (c.LastMessage?.Contains(searchQuery, StringComparison.OrdinalIgnoreCase) ?? false)).ToList();
 
     protected override void OnInitialized()
     {
-        templateCount = LocalDb.GetTemplates().Count;
-        categoryCount = LocalDb.GetCategories().Count;
-        pendingCount = LocalDb.GetPendingOutbox().Count;
-        favorites = LocalDb.GetTemplates().Where(t => t.IsFavorite).Take(5).ToList();
+        LoadAllData();
+        var savedUrl = Db.GetState("ServerUrl");
+        serverUrl = !string.IsNullOrEmpty(savedUrl) ? savedUrl : "http://localhost:5000";
+        var savedToken = Db.GetState("Token");
+        if (!string.IsNullOrEmpty(savedToken)) token = savedToken;
+        currentUserName = Db.GetState("CurrentUserName") ?? "Kang Fadhil (Gravicode Studios)";
+        currentUserEmail = Db.GetState("CurrentUserEmail") ?? "fadhil@gravicode.com";
+        isOnlineServer = ChatClient.State == Microsoft.AspNetCore.SignalR.Client.HubConnectionState.Connected;
     }
 
-    private void GoToComposer(int id) => Nav.NavigateTo("/composer/" + id.ToString());
+    private void LoadAllData()
+    {
+        conversations = Db.GetConversations().ToList();
+        var allStatuses = Db.GetStatuses().ToList();
+        myStatus = allStatuses.FirstOrDefault(s => s.IsMine);
+        recentStatuses = allStatuses.Where(s => !s.IsMine).ToList();
+        callLogs = Db.GetCalls().ToList();
+        LoadForumData();
+    }
+
+    private void SetTab(string tab)
+    {
+        activeTab = tab;
+    }
+
+    private void ToggleSearch()
+    {
+        isSearching = !isSearching;
+        if (!isSearching) searchQuery = "";
+    }
+
+    private void ToggleMenu() => showMenu = !showMenu;
+
+    private void OpenChat(int conversationId)
+    {
+        Db.MarkConversationAsRead(conversationId);
+        Nav.NavigateTo($"/chat/{conversationId}");
+    }
+
+    // ── Status Story Viewer ────────────────────────────────────────────────────
+    private void ViewStatusStory(LocalStatus st)
+    {
+        activeStory = st;
+        currentStoryIndex = recentStatuses.IndexOf(st);
+        Db.MarkStatusViewed(st.Id);
+        st.IsViewed = true;
+        storyProgress = 0;
+        storyReplyText = "";
+
+        storyTimer?.Dispose();
+        storyTimer = new System.Threading.Timer(_ =>
+        {
+            storyProgress += 2;
+            if (storyProgress >= 100)
+            {
+                InvokeAsync(NextStory);
+            }
+            else
+            {
+                InvokeAsync(StateHasChanged);
+            }
+        }, null, 100, 100);
+    }
+
+    private void HandleMyStatusClick()
+    {
+        if (myStatus != null) ViewStatusStory(myStatus);
+        else OpenStatusCreator();
+    }
+
+    private void CloseStory()
+    {
+        storyTimer?.Dispose();
+        storyTimer = null;
+        activeStory = null;
+        LoadAllData();
+        StateHasChanged();
+    }
+
+    private void NextStory()
+    {
+        if (currentStoryIndex < recentStatuses.Count - 1)
+        {
+            currentStoryIndex++;
+            ViewStatusStory(recentStatuses[currentStoryIndex]);
+        }
+        else
+        {
+            CloseStory();
+        }
+    }
+
+    private void PrevStory()
+    {
+        if (currentStoryIndex > 0)
+        {
+            currentStoryIndex--;
+            ViewStatusStory(recentStatuses[currentStoryIndex]);
+        }
+    }
+
+    private void SendStoryReply()
+    {
+        if (string.IsNullOrWhiteSpace(storyReplyText) || activeStory == null) return;
+        var conv = Db.CreateOrGetPrivateChat(activeStory.UserName);
+        Db.AddLocalMessage(conv.Id, "me", "Saya", $"Membalas status: \"{activeStory.TextContent}\"\n\n{storyReplyText}", true);
+        CloseStory();
+        OpenChat(conv.Id);
+    }
+
+    // ── Status Creator ────────────────────────────────────────────────────────
+    private void OpenStatusCreator()
+    {
+        showStatusCreator = true;
+        newStatusText = "";
+    }
+
+    private void SaveNewStatus()
+    {
+        if (string.IsNullOrWhiteSpace(newStatusText)) return;
+        Db.AddStatus("Status Saya", newStatusText.Trim(), creatorBgColor, isMine: true);
+        showStatusCreator = false;
+        LoadAllData();
+        StateHasChanged();
+    }
+
+    // ── Simulated WhatsApp Call ───────────────────────────────────────────────
+    private void LaunchSimulatedCall(string contactName, bool isVideo)
+    {
+        activeCallContact = contactName;
+        isVideoCall = isVideo;
+        activeCallStatus = "Memanggil...";
+        isCallActive = true;
+        callSeconds = 0;
+        isSpeakerOn = false;
+        isMicMuted = false;
+
+        // Transition: Memanggil -> Berdering -> Connected Timer
+        Task.Run(async () =>
+        {
+            await Task.Delay(1400);
+            activeCallStatus = "Berdering...";
+            await InvokeAsync(StateHasChanged);
+
+            await Task.Delay(1800);
+            activeCallStatus = "00:00";
+            callDurationTimer = new System.Threading.Timer(_ =>
+            {
+                callSeconds++;
+                int min = callSeconds / 60;
+                int sec = callSeconds % 60;
+                activeCallStatus = $"{min:00}:{sec:00}";
+                InvokeAsync(StateHasChanged);
+            }, null, 1000, 1000);
+
+            await InvokeAsync(StateHasChanged);
+        });
+    }
+
+    private void EndCall()
+    {
+        callDurationTimer?.Dispose();
+        callDurationTimer = null;
+        isCallActive = false;
+
+        string dur = callSeconds > 0 ? $"{callSeconds / 60:00}:{callSeconds % 60:00}" : "00:00";
+        Db.AddCall(activeCallContact, isVideoCall, isIncoming: false, isMissed: callSeconds == 0, duration: dur);
+        LoadAllData();
+        StateHasChanged();
+    }
+
+    // ── Direct Chat (Tanpa Simpan Nomor) ──────────────────────────────────────
+    private void StartDirectChat()
+    {
+        if (string.IsNullOrWhiteSpace(directPhoneNumber)) return;
+
+        string cleanPhone = directPhoneNumber.Trim().Replace("-", "").Replace(" ", "").Replace("+", "");
+        if (cleanPhone.StartsWith("0")) cleanPhone = "62" + cleanPhone.Substring(1);
+
+        string chatName = $"+{cleanPhone}";
+        var conv = Db.CreateOrGetPrivateChat(chatName);
+
+        if (!string.IsNullOrWhiteSpace(directInitialMessage))
+        {
+            Db.AddLocalMessage(conv.Id, "me", "Saya", directInitialMessage.Trim(), true);
+        }
+
+        showDirectChatModal = false;
+        directPhoneNumber = "";
+        directInitialMessage = "";
+
+        OpenChat(conv.Id);
+    }
+
+    private async Task ConnectServer()
+    {
+        if (string.IsNullOrWhiteSpace(serverUrl))
+            serverUrl = "http://localhost:5000";
+
+        try
+        {
+            if (string.IsNullOrWhiteSpace(token))
+            {
+                var loginJson = System.Text.Json.JsonSerializer.Serialize(new { email = "fadhil@gravicode.com", password = "Password123!" });
+                var loginContent = new StringContent(loginJson, System.Text.Encoding.UTF8, "application/json");
+                var res = await Http.PostAsync($"{serverUrl.TrimEnd('/')}/api/v1/auth/login", loginContent);
+                if (res.IsSuccessStatusCode)
+                {
+                    var resStr = await res.Content.ReadAsStringAsync();
+                    using var doc = System.Text.Json.JsonDocument.Parse(resStr);
+                    if (doc.RootElement.TryGetProperty("token", out var tokProp))
+                    {
+                        token = tokProp.GetString() ?? "";
+                    }
+                }
+            }
+
+            Db.SetState("ServerUrl", serverUrl);
+            Db.SetState("Token", token);
+
+            ChatClient.Configure(serverUrl, token);
+            await ChatClient.ConnectAsync();
+            isOnlineServer = ChatClient.State == Microsoft.AspNetCore.SignalR.Client.HubConnectionState.Connected;
+        }
+        catch { isOnlineServer = false; }
+
+        showSettingsModal = false;
+        StateHasChanged();
+    }
+
+    private async Task QuickLogin(string email, string password, string displayName)
+    {
+        authErrorMessage = "";
+        try
+        {
+            var loginJson = System.Text.Json.JsonSerializer.Serialize(new { email, password });
+            var loginContent = new StringContent(loginJson, System.Text.Encoding.UTF8, "application/json");
+            var res = await Http.PostAsync($"{serverUrl.TrimEnd('/')}/api/v1/auth/login", loginContent);
+            if (res.IsSuccessStatusCode)
+            {
+                var resStr = await res.Content.ReadAsStringAsync();
+                using var doc = System.Text.Json.JsonDocument.Parse(resStr);
+                if (doc.RootElement.TryGetProperty("token", out var tokProp))
+                {
+                    token = tokProp.GetString() ?? "";
+                }
+                if (doc.RootElement.TryGetProperty("displayName", out var nameProp) && !string.IsNullOrWhiteSpace(nameProp.GetString()))
+                {
+                    currentUserName = nameProp.GetString()!;
+                }
+                else
+                {
+                    currentUserName = displayName;
+                }
+                if (doc.RootElement.TryGetProperty("email", out var emailProp) && !string.IsNullOrWhiteSpace(emailProp.GetString()))
+                {
+                    currentUserEmail = emailProp.GetString()!;
+                }
+                else
+                {
+                    currentUserEmail = email;
+                }
+                Db.SetState("Token", token);
+                Db.SetState("CurrentUserName", currentUserName);
+                Db.SetState("CurrentUserEmail", currentUserEmail);
+
+                ChatClient.Configure(serverUrl, token);
+                await ChatClient.ConnectAsync();
+                isOnlineServer = ChatClient.State == Microsoft.AspNetCore.SignalR.Client.HubConnectionState.Connected;
+                showAuthModal = false;
+            }
+            else
+            {
+                // Jika login gagal (misal akun baru), coba daftarkan otomatis
+                var regName = string.IsNullOrWhiteSpace(displayName) ? email.Split('@')[0] : displayName;
+                var regJson = System.Text.Json.JsonSerializer.Serialize(new { email = email.Trim(), password, displayName = regName });
+                var regContent = new StringContent(regJson, System.Text.Encoding.UTF8, "application/json");
+                var regRes = await Http.PostAsync($"{serverUrl.TrimEnd('/')}/api/v1/auth/register", regContent);
+                if (regRes.IsSuccessStatusCode)
+                {
+                    var resStr = await regRes.Content.ReadAsStringAsync();
+                    using var doc = System.Text.Json.JsonDocument.Parse(resStr);
+                    if (doc.RootElement.TryGetProperty("token", out var tokProp))
+                    {
+                        token = tokProp.GetString() ?? "";
+                    }
+                    currentUserName = regName;
+                    currentUserEmail = email;
+                    Db.SetState("Token", token);
+                    Db.SetState("CurrentUserName", currentUserName);
+                    Db.SetState("CurrentUserEmail", currentUserEmail);
+
+                    ChatClient.Configure(serverUrl, token);
+                    await ChatClient.ConnectAsync();
+                    isOnlineServer = ChatClient.State == Microsoft.AspNetCore.SignalR.Client.HubConnectionState.Connected;
+                    showAuthModal = false;
+                }
+                else
+                {
+                    authErrorMessage = "Login & Registrasi tidak berhasil. Pastikan backend server aktif.";
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            // Beralih ke profil lokal saat offline
+            currentUserName = displayName;
+            currentUserEmail = email;
+            Db.SetState("CurrentUserName", currentUserName);
+            Db.SetState("CurrentUserEmail", currentUserEmail);
+            authErrorMessage = $"Mode Offline: {ex.Message}. Profil lokal '{displayName}' aktif.";
+            isOnlineServer = false;
+        }
+        StateHasChanged();
+    }
+
+    private async Task PerformLoginAsync()
+    {
+        if (string.IsNullOrWhiteSpace(authEmail) || string.IsNullOrWhiteSpace(authPassword))
+        {
+            authErrorMessage = "Email dan password wajib diisi.";
+            return;
+        }
+
+        await QuickLogin(authEmail.Trim(), authPassword, authEmail.Trim());
+    }
+
+    private async Task PerformRegisterAsync()
+    {
+        if (string.IsNullOrWhiteSpace(authEmail) || string.IsNullOrWhiteSpace(authPassword))
+        {
+            authErrorMessage = "Nama, email, dan password wajib diisi.";
+            return;
+        }
+
+        authErrorMessage = "";
+        try
+        {
+            var regName = string.IsNullOrWhiteSpace(authDisplayName) ? authEmail.Split('@')[0] : authDisplayName.Trim();
+            var regJson = System.Text.Json.JsonSerializer.Serialize(new { email = authEmail.Trim(), password = authPassword, displayName = regName });
+            var regContent = new StringContent(regJson, System.Text.Encoding.UTF8, "application/json");
+            var res = await Http.PostAsync($"{serverUrl.TrimEnd('/')}/api/v1/auth/register", regContent);
+            if (res.IsSuccessStatusCode)
+            {
+                var resStr = await res.Content.ReadAsStringAsync();
+                using var doc = System.Text.Json.JsonDocument.Parse(resStr);
+                if (doc.RootElement.TryGetProperty("token", out var tokProp))
+                {
+                    token = tokProp.GetString() ?? "";
+                }
+                currentUserName = regName;
+                currentUserEmail = authEmail.Trim();
+                Db.SetState("Token", token);
+                Db.SetState("CurrentUserName", currentUserName);
+                Db.SetState("CurrentUserEmail", currentUserEmail);
+
+                ChatClient.Configure(serverUrl, token);
+                await ChatClient.ConnectAsync();
+                isOnlineServer = ChatClient.State == Microsoft.AspNetCore.SignalR.Client.HubConnectionState.Connected;
+                showAuthModal = false;
+            }
+            else
+            {
+                authErrorMessage = "Registrasi gagal. Email mungkin sudah terdaftar atau password < 6 karakter.";
+            }
+        }
+        catch (Exception ex)
+        {
+            authErrorMessage = $"Gagal terhubung ke server: {ex.Message}";
+        }
+        StateHasChanged();
+    }
+
+    private void SwitchToOfflineMode()
+    {
+        isOnlineServer = false;
+        showAuthModal = false;
+        showSettingsModal = false;
+        StateHasChanged();
+    }
+
+    // ── Forum Komunitas Methods (Beda dari Grup) ──────────────────────────────
+    private void LoadForumData()
+    {
+        forumThreads = Db.GetForumThreads(activeForumCategory).ToList();
+    }
+
+    private void FilterForumCategory(string cat)
+    {
+        activeForumCategory = cat;
+        LoadForumData();
+    }
+
+    private void OpenThreadDetail(LocalForumThread t)
+    {
+        selectedThread = t;
+        threadComments = Db.GetThreadComments(t.Id).ToList();
+        newCommentText = "";
+    }
+
+    private void CloseThreadDetail()
+    {
+        selectedThread = null;
+        threadComments.Clear();
+        LoadForumData();
+    }
+
+    private void ToggleThreadUpvote(int threadId)
+    {
+        Db.ToggleThreadUpvote(threadId);
+        LoadForumData();
+        if (selectedThread != null && selectedThread.Id == threadId)
+        {
+            selectedThread = Db.GetForumThread(threadId);
+        }
+    }
+
+    private void SubmitComment()
+    {
+        if (selectedThread == null || string.IsNullOrWhiteSpace(newCommentText)) return;
+        Db.AddThreadComment(selectedThread.Id, currentUserName, newCommentText.Trim());
+        threadComments = Db.GetThreadComments(selectedThread.Id).ToList();
+        selectedThread = Db.GetForumThread(selectedThread.Id);
+        newCommentText = "";
+        LoadForumData();
+    }
+
+    private void SubmitNewThread()
+    {
+        if (string.IsNullOrWhiteSpace(newThreadTitle) || string.IsNullOrWhiteSpace(newThreadContent)) return;
+        Db.AddForumThread(newThreadCategory, newThreadTitle.Trim(), currentUserName, newThreadContent.Trim(), newThreadTags.Trim());
+        showNewThreadModal = false;
+        newThreadTitle = "";
+        newThreadContent = "";
+        newThreadTags = "";
+        LoadForumData();
+    }
+
+    private void ToggleFlipCamera()
+    {
+        isFrontCamera = !isFrontCamera;
+    }
+
+    private string GetCategoryClass(string category)
+    {
+        if (category.Contains("Pengumuman")) return "wa-cat-announcement";
+        if (category.Contains("Ide")) return "wa-cat-idea";
+        if (category.Contains("Q&A") || category.Contains("Tanya")) return "wa-cat-qa";
+        return "wa-cat-general";
+    }
+
+    private string GetInitials(string name)
+    {
+        if (string.IsNullOrWhiteSpace(name)) return "WA";
+        var parts = name.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        if (parts.Length == 1) return parts[0][0].ToString().ToUpper();
+        return $"{parts[0][0]}{parts[1][0]}".ToUpper();
+    }
+
+    private string GetAvatarBg(string name)
+    {
+        string[] colors = { "#00A884", "#128C7E", "#25D366", "#0D9488", "#0284C7", "#7C3AED", "#DB2777" };
+        int hash = Math.Abs(name.GetHashCode());
+        return colors[hash % colors.Length];
+    }
+
+    private string FormatTimestamp(DateTime? dt)
+    {
+        if (dt is null) return "";
+        var local = dt.Value.ToLocalTime();
+        if (local.Date == DateTime.Now.Date) return local.ToString("HH:mm");
+        if (local.Date == DateTime.Now.Date.AddDays(-1)) return "Kemarin";
+        return local.ToString("dd/MM/yy");
+    }
+
+    public void Dispose()
+    {
+        storyTimer?.Dispose();
+        callDurationTimer?.Dispose();
+    }
 }

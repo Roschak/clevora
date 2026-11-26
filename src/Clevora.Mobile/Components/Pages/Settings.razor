@@ -1,0 +1,1470 @@
+@page "/settings"
+@using Clevora.Mobile.Services
+@inject LocalDatabaseService Db
+@inject NavigationManager Nav
+@inject ChatClientService ChatClient
+
+<div class="wa-settings-screen">
+    <!-- Header -->
+    <header class="wa-settings-header">
+        <button class="wa-settings-back-btn" @onclick="HandleBack" title="Kembali">
+            <svg viewBox="0 0 24 24" width="24" height="24" fill="white">
+                <path d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z"/>
+            </svg>
+        </button>
+        <h2 class="wa-settings-title">@(string.IsNullOrEmpty(activeSubScreen) ? "Setelan" : subScreenTitle)</h2>
+        <div style="margin-left:auto;">
+            @if (string.IsNullOrEmpty(activeSubScreen))
+            {
+                <button class="wa-settings-icon-btn" title="Cari Setelan" @onclick="() => showSearch = !showSearch">
+                    <svg viewBox="0 0 24 24" width="22" height="22" fill="white">
+                        <path d="M15.5 14h-.79l-.28-.27A6.471 6.471 0 0 0 16 9.5 6.5 6.5 0 1 0 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 14"/>
+                    </svg>
+                </button>
+            }
+        </div>
+    </header>
+
+    @if (showToast)
+    {
+        <div class="wa-toast">@toastMessage</div>
+    }
+
+    <main class="wa-settings-body">
+        @if (string.IsNullOrEmpty(activeSubScreen))
+        {
+            @if (showSearch)
+            {
+                <div class="wa-settings-search-bar">
+                    <input type="text" placeholder="Cari setelan..." @bind="searchFilter" @bind:event="oninput" autofocus />
+                    <button @onclick="() => { showSearch = false; searchFilter = string.Empty; }">✕</button>
+                </div>
+            }
+
+            <!-- 1. Profil Card (Top) -->
+            <div class="wa-profile-card" @onclick='() => OpenSubScreen("profile", "Profil")'>
+                <div class="wa-profile-avatar">
+                    @(string.IsNullOrWhiteSpace(currentUserName) ? "U" : currentUserName.Substring(0, 1).ToUpper())
+                </div>
+                <div class="wa-profile-meta">
+                    <div class="wa-profile-name">@currentUserName</div>
+                    <div class="wa-profile-status">@userBio</div>
+                </div>
+                <div class="wa-profile-qr" title="Kode QR Profil">
+                    <svg viewBox="0 0 24 24" width="24" height="24" fill="#008069">
+                        <path d="M3 11h8V3H3zm2-6h4v4H5zM3 21h8v-8H3zm2-6h4v4H5zm8-12v8h8V3zm6 6h-4V5h4zm0 10h2v2h-2zm-6-4h2v2h-2zm2 2h2v2h-2zm-2 2h2v2h-2zm4 0h2v2h-2zm2-2h2v2h-2zm0-4h2v2h-2zm-4 0h2v2h-2z"/>
+                    </svg>
+                </div>
+            </div>
+
+            <!-- List of WhatsApp 12 Setting Categories -->
+            <div class="wa-settings-list">
+                @if (MatchesFilter("Akun", "Notifikasi keamanan, kunci sandi, email, verifikasi dua langkah, ganti nomor"))
+                {
+                    <div class="wa-settings-item" @onclick='() => OpenSubScreen("account", "Akun")'>
+                        <div class="wa-settings-icon">
+                            <svg viewBox="0 0 24 24" width="22" height="22" fill="#54656F"><path d="M12.65 10C11.83 7.67 9.61 6 7 6c-3.31 0-6 2.69-6 6s2.69 6 6 6c2.61 0 4.83-1.67 5.65-4H17v4h4v-4h2v-4H12.65zM7 14c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2z"/></svg>
+                        </div>
+                        <div class="wa-settings-item-info">
+                            <div class="wa-settings-item-title">Akun</div>
+                            <div class="wa-settings-item-desc">Notifikasi keamanan, kunci sandi, alamat email, verifikasi 2 langkah</div>
+                        </div>
+                    </div>
+                }
+
+                @if (MatchesFilter("Privasi", "Terakhir dilihat, foto profil, info, laporan dibaca, timer pesan default, blokir"))
+                {
+                    <div class="wa-settings-item" @onclick='() => OpenSubScreen("privacy", "Privasi")'>
+                        <div class="wa-settings-icon">
+                            <svg viewBox="0 0 24 24" width="22" height="22" fill="#54656F"><path d="M18 8h-1V6c0-2.76-2.24-5-5-5S7 3.24 7 6v2H6c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V10c0-1.1-.9-2-2-2m-6 9c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2m3.1-9H8.9V6c0-1.71 1.39-3.1 3.1-3.1 1.71 0 3.1 1.39 3.1 3.1z"/></svg>
+                        </div>
+                        <div class="wa-settings-item-info">
+                            <div class="wa-settings-item-title">Privasi</div>
+                            <div class="wa-settings-item-desc">Terakhir dilihat &amp; online, centang biru, timer pesan, kunci chat</div>
+                        </div>
+                    </div>
+                }
+
+                @if (MatchesFilter("Avatar", "Buat, edit, foto profil digital"))
+                {
+                    <div class="wa-settings-item" @onclick='() => OpenSubScreen("avatar", "Avatar")'>
+                        <div class="wa-settings-icon">
+                            <svg viewBox="0 0 24 24" width="22" height="22" fill="#54656F"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 3c1.66 0 3 1.34 3 3s-1.34 3-3 3-3-1.34-3-3 1.34-3 3-3zm0 14.2c-2.5 0-4.71-1.28-6-3.22.03-1.99 4-3.08 6-3.08 1.99 0 5.97 1.09 6 3.08-1.29 1.94-3.5 3.22-6 3.22z"/></svg>
+                        </div>
+                        <div class="wa-settings-item-info">
+                            <div class="wa-settings-item-title">Avatar</div>
+                            <div class="wa-settings-item-desc">Buat, edit, gunakan avatar digital &amp; paket stiker</div>
+                        </div>
+                    </div>
+                }
+
+                @if (MatchesFilter("Daftar", "Kategori filter chat, favorit, grup, kerja"))
+                {
+                    <div class="wa-settings-item" @onclick='() => OpenSubScreen("lists", "Daftar")'>
+                        <div class="wa-settings-icon">
+                            <svg viewBox="0 0 24 24" width="22" height="22" fill="#54656F"><path d="M3 13h2v-2H3v2zm0 4h2v-2H3v2zm0-8h2V7H3v2zm4 4h14v-2H7v2zm0 4h14v-2H7v2zM7 7v2h14V7H7z"/></svg>
+                        </div>
+                        <div class="wa-settings-item-info">
+                            <div class="wa-settings-item-title">Daftar (Lists)</div>
+                            <div class="wa-settings-item-desc">Kelola kategori filter percakapan (Semua, Favorit, Grup, Kerja)</div>
+                        </div>
+                    </div>
+                }
+
+                @if (MatchesFilter("Chat", "Tema, wallpaper, enter untuk mengirim, riwayat chat, cadangan"))
+                {
+                    <div class="wa-settings-item" @onclick='() => OpenSubScreen("chats", "Chat")'>
+                        <div class="wa-settings-icon">
+                            <svg viewBox="0 0 24 24" width="22" height="22" fill="#54656F"><path d="M20 2H4c-1.1 0-1.99.9-1.99 2L2 22l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zM6 9h12v2H6V9zm8 5H6v-2h8v2zm4-6H6V6h12v2z"/></svg>
+                        </div>
+                        <div class="wa-settings-item-info">
+                            <div class="wa-settings-item-title">Chat</div>
+                            <div class="wa-settings-item-desc">Tema, wallpaper, enter kirim, transkrip suara, cadangan chat</div>
+                        </div>
+                    </div>
+                }
+
+                @if (MatchesFilter("Notifikasi", "Nada pesan, nada dering, getar, nada reaksi"))
+                {
+                    <div class="wa-settings-item" @onclick='() => OpenSubScreen("notifications", "Notifikasi")'>
+                        <div class="wa-settings-icon">
+                            <svg viewBox="0 0 24 24" width="22" height="22" fill="#54656F"><path d="M12 22c1.1 0 2-.9 2-2h-4c0 1.1.9 2 2 2m6-6v-5c0-3.07-1.63-5.64-4.5-6.32V4c0-.83-.67-1.5-1.5-1.5s-1.5.67-1.5 1.5v.68C7.64 5.36 6 7.92 6 11v5l-2 2v1h16v-1z"/></svg>
+                        </div>
+                        <div class="wa-settings-item-info">
+                            <div class="wa-settings-item-title">Notifikasi</div>
+                            <div class="wa-settings-item-desc">Nada percakapan, notifikasi pesan, grup, nada panggilan &amp; reaksi</div>
+                        </div>
+                    </div>
+                }
+
+                @if (MatchesFilter("Penyimpanan dan Data", "Kelola penyimpanan, penggunaan data, kualitas media"))
+                {
+                    <div class="wa-settings-item" @onclick='() => OpenSubScreen("storage", "Penyimpanan dan Data")'>
+                        <div class="wa-settings-icon">
+                            <svg viewBox="0 0 24 24" width="22" height="22" fill="#54656F"><path d="M19.35 10.04C18.67 6.59 15.64 4 12 4 9.11 4 6.6 5.64 5.35 8.04 2.34 8.36 0 10.91 0 14c0 3.31 2.69 6 6 6h13c2.76 0 5-2.24 5-5 0-2.64-2.05-4.78-4.65-4.96M17 13l-5 5-5-5h3V9h4v4z"/></svg>
+                        </div>
+                        <div class="wa-settings-item-info">
+                            <div class="wa-settings-item-title">Penyimpanan dan Data</div>
+                            <div class="wa-settings-item-desc">Kelola penyimpanan, kualitas unggahan media HD, unduh otomatis</div>
+                        </div>
+                    </div>
+                }
+
+                @if (MatchesFilter("Bahasa Aplikasi", "Pilihan bahasa antarmuka"))
+                {
+                    <div class="wa-settings-item" @onclick='() => OpenSubScreen("language", "Bahasa Aplikasi")'>
+                        <div class="wa-settings-icon">
+                            <svg viewBox="0 0 24 24" width="22" height="22" fill="#54656F"><path d="M11.99 2C6.47 2 2 6.48 2 12s4.47 10 9.99 10C17.52 22 22 17.52 22 12S17.52 2 11.99 2m6.93 6h-2.95c-.32-1.25-.78-2.45-1.38-3.56 1.84.63 3.37 1.91 4.33 3.56M12 4.04c.83 1.2 1.48 2.53 1.91 3.96h-3.82c.43-1.43 1.08-2.76 1.91-3.96M4.26 14C4.1 13.36 4 12.69 4 12s.1-1.36.26-2h3.38c-.08.66-.14 1.32-.14 2s.06 1.34.14 2zm.82 2h2.95c.32 1.25.78 2.45 1.38 3.56-1.84-.63-3.37-1.9-4.33-3.56m2.95-8H5.08c.96-1.66 2.49-2.93 4.33-3.56C8.81 5.55 8.35 6.75 8.03 8M12 19.96c-.83-1.2-1.48-2.53-1.91-3.96h3.82c-.43 1.43-1.08 2.76-1.91 3.96M14.34 14H9.66c-.09-.66-.16-1.32-.16-2s.07-1.35.16-2h4.68c.09.65.16 1.32.16 2s-.07 1.34-.16 2m.15 5.56c.6-1.11 1.06-2.31 1.38-3.56h2.95c-.96 1.65-2.49 2.93-4.33 3.56M16.36 14c.08-.66.14-1.32.14-2s-.06-1.34-.14-2h3.38c.16.64.26 1.31.26 2s-.1 1.36-.26 2z"/></svg>
+                        </div>
+                        <div class="wa-settings-item-info">
+                            <div class="wa-settings-item-title">Bahasa Aplikasi</div>
+                            <div class="wa-settings-item-desc">@selectedLanguage (Bahasa perangkat)</div>
+                        </div>
+                    </div>
+                }
+
+                @if (MatchesFilter("Bantuan", "Pusat bantuan, hubungi kami, kebijakan privasi, info aplikasi"))
+                {
+                    <div class="wa-settings-item" @onclick='() => OpenSubScreen("help", "Bantuan")'>
+                        <div class="wa-settings-icon">
+                            <svg viewBox="0 0 24 24" width="22" height="22" fill="#54656F"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2m1 16h-2v-2h2zm1.07-7.75-.9.92C12.45 11.9 12 12.5 12 14h-2v-.5c0-1.1.45-2.1 1.17-2.83l1.24-1.26c.37-.36.59-.86.59-1.41 0-1.1-.9-2-2-2s-2 .9-2 2H7c0-2.76 2.24-5 5-5s5 2.24 5 5c0 .88-.36 1.68-.93 2.25"/></svg>
+                        </div>
+                        <div class="wa-settings-item-info">
+                            <div class="wa-settings-item-title">Bantuan</div>
+                            <div class="wa-settings-item-desc">Pusat bantuan, hubungi kami, ketentuan &amp; info aplikasi</div>
+                        </div>
+                    </div>
+                }
+
+                @if (MatchesFilter("Undang Teman", "Bagikan link"))
+                {
+                    <div class="wa-settings-item" @onclick='() => OpenSubScreen("invite", "Undang Teman")'>
+                        <div class="wa-settings-icon">
+                            <svg viewBox="0 0 24 24" width="22" height="22" fill="#54656F"><path d="M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5s-3 1.34-3 3 1.34 3 3 3m-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5 5 6.34 5 8s1.34 3 3 3m0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5m8 0c-.29 0-.62.02-.97.05 1.16.84 1.97 1.97 1.97 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5"/></svg>
+                        </div>
+                        <div class="wa-settings-item-info">
+                            <div class="wa-settings-item-title">Undang Teman</div>
+                            <div class="wa-settings-item-desc">Bagikan tautan unduh Clevora WhatsApp</div>
+                        </div>
+                    </div>
+                }
+
+                @if (MatchesFilter("Pembaruan Aplikasi", "Cek update"))
+                {
+                    <div class="wa-settings-item" @onclick='() => OpenSubScreen("updates", "Pembaruan Aplikasi")'>
+                        <div class="wa-settings-icon">
+                            <svg viewBox="0 0 24 24" width="22" height="22" fill="#54656F"><path d="M17.65 6.35C16.2 4.9 14.21 4 12 4c-4.42 0-7.99 3.58-7.99 8s3.57 8 7.99 8c3.73 0 6.84-2.55 7.73-6h-2.08c-.82 2.33-3.04 4-5.65 4-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4z"/></svg>
+                        </div>
+                        <div class="wa-settings-item-info">
+                            <div class="wa-settings-item-title">Pembaruan Aplikasi</div>
+                            <div class="wa-settings-item-desc">Cek pembaruan terbaru, rilis v2.5.0 LTS</div>
+                        </div>
+                    </div>
+                }
+
+                @if (MatchesFilter("Server Cloud & Sinkronisasi", "Koneksi backend, JWT token, IP"))
+                {
+                    <div class="wa-settings-item" @onclick='() => OpenSubScreen("serversync", "Server Cloud & Sinkronisasi")'>
+                        <div class="wa-settings-icon">
+                            <svg viewBox="0 0 24 24" width="22" height="22" fill="#008069"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2m-1 17.93c-3.95-.49-7-3.85-7-7.93 0-.62.08-1.21.21-1.79L9 15v1c0 1.1.9 2 2 2zm6.9-2.54c-.26-.81-1-1.39-1.9-1.39h-1v-3c0-.55-.45-1-1-1H8v-2h2c.55 0 1-.45 1-1V7h2c1.1 0 2-.9 2-2v-.41c2.93 1.19 5 4.06 5 7.41 0 2.08-.8 3.97-2.1 5.39"/></svg>
+                        </div>
+                        <div class="wa-settings-item-info">
+                            <div class="wa-settings-item-title">Server Cloud &amp; Sinkronisasi</div>
+                            <div class="wa-settings-item-desc">Status: @(ChatClient.State == Microsoft.AspNetCore.SignalR.Client.HubConnectionState.Connected ? "Terhubung ke SignalR Cloud" : "Mode Offline Lokal SQLite")</div>
+                        </div>
+                    </div>
+                }
+            </div>
+
+            <!-- Footer Credit -->
+            <div class="wa-settings-footer">
+                <div style="font-weight:700;color:#008069;">Clevora WhatsApp</div>
+                <div style="font-size:0.75rem;color:#667781;margin-top:2px;">
+                    dari <strong>Gravicode Studios</strong> dipimpin oleh <em>Kang Fadhil</em>
+                </div>
+            </div>
+        }
+        else if (activeSubScreen == "profile")
+        {
+            <!-- SUB-SCREEN 1: PROFIL -->
+            <div class="wa-subscreen">
+                <div class="wa-profile-header-center">
+                    <div class="wa-avatar-large">
+                        @(string.IsNullOrWhiteSpace(currentUserName) ? "U" : currentUserName.Substring(0, 1).ToUpper())
+                        <div class="wa-avatar-edit-badge" title="Ganti Foto">📷</div>
+                    </div>
+                </div>
+
+                <div class="wa-card-section">
+                    <label class="wa-label-sm">Nama</label>
+                    <div class="wa-input-row">
+                        <input class="wa-sub-input" @bind="currentUserName" />
+                        <button class="wa-btn-save-sm" @onclick="SaveProfile">Simpan</button>
+                    </div>
+                    <p class="wa-help-text">Nama ini akan terlihat oleh kontak WhatsApp Anda.</p>
+                </div>
+
+                <div class="wa-card-section">
+                    <label class="wa-label-sm">Info / Bio</label>
+                    <div class="wa-input-row">
+                        <input class="wa-sub-input" @bind="userBio" />
+                        <button class="wa-btn-save-sm" @onclick="SaveProfile">Simpan</button>
+                    </div>
+                    <div class="wa-chip-presets">
+                        <span @onclick='() => { userBio = "Ada"; SaveProfile(); }'>Ada</span>
+                        <span @onclick='() => { userBio = "Sibuk"; SaveProfile(); }'>Sibuk</span>
+                        <span @onclick='() => { userBio = "Di kantor"; SaveProfile(); }'>Di kantor</span>
+                        <span @onclick='() => { userBio = "Hanya pesan WhatsApp"; SaveProfile(); }'>Hanya WhatsApp</span>
+                    </div>
+                </div>
+
+                <div class="wa-card-section">
+                    <label class="wa-label-sm">Nomor Telepon / ID Akun</label>
+                    <div class="wa-input-row">
+                        <input class="wa-sub-input" @bind="userPhone" placeholder="+62 812-3456-7890" />
+                        <button class="wa-btn-save-sm" @onclick="SaveProfile">Simpan</button>
+                    </div>
+                </div>
+
+                <div class="wa-card-section">
+                    <label class="wa-label-sm">Tautan Media Sosial / Website</label>
+                    <div class="wa-input-row">
+                        <input class="wa-sub-input" @bind="userSocialLink" placeholder="https://gravicode.com" />
+                        <button class="wa-btn-save-sm" @onclick="SaveProfile">Simpan</button>
+                    </div>
+                </div>
+            </div>
+        }
+        else if (activeSubScreen == "account")
+        {
+            <!-- SUB-SCREEN 2: AKUN -->
+            <div class="wa-subscreen">
+                <div class="wa-setting-tile">
+                    <div class="wa-tile-text">
+                        <div class="wa-tile-title">Notifikasi Keamanan</div>
+                        <div class="wa-tile-sub">Terima notifikasi saat kode keamanan berubah untuk kontak Anda</div>
+                    </div>
+                    <input type="checkbox" class="wa-switch" @bind="securityNotifications" @bind:after="SaveAccountSettings" />
+                </div>
+
+                <div class="wa-setting-tile">
+                    <div class="wa-tile-text">
+                        <div class="wa-tile-title">Kunci Sandi (Passkeys)</div>
+                        <div class="wa-tile-sub">Masuk aman menggunakan sidik jari, pemindai wajah, atau kunci layar</div>
+                    </div>
+                    <button class="wa-btn-link" @onclick='() => ShowAlert("Passkey aktif untuk perangkat ini.")'>Kelola</button>
+                </div>
+
+                <div class="wa-card-section">
+                    <label class="wa-label-sm">Alamat Email Terhubung</label>
+                    <div class="wa-input-row">
+                        <input class="wa-sub-input" @bind="currentUserEmail" />
+                        <button class="wa-btn-save-sm" @onclick="SaveAccountSettings">Perbarui</button>
+                    </div>
+                </div>
+
+                <div class="wa-setting-tile">
+                    <div class="wa-tile-text">
+                        <div class="wa-tile-title">Verifikasi Dua Langkah</div>
+                        <div class="wa-tile-sub">PIN 6-digit keamanan tambahan untuk nomor Anda</div>
+                    </div>
+                    <button class="wa-btn-link" @onclick='() => ShowAlert("Verifikasi 2 langkah aktif.")'>Aktifkan</button>
+                </div>
+
+                <div class="wa-setting-tile" @onclick='() => ShowAlert("Silakan masukkan nomor telepon baru.")'>
+                    <div class="wa-tile-text">
+                        <div class="wa-tile-title">Ganti Nomor / ID Akun</div>
+                        <div class="wa-tile-sub">Pindahkan info akun, grup, &amp; setelan Anda</div>
+                    </div>
+                    <span>›</span>
+                </div>
+
+                <div class="wa-setting-tile" @onclick='() => ShowAlert("Permintaan info akun telah dikirim. Laporan siap dalam 3 hari.")'>
+                    <div class="wa-tile-text">
+                        <div class="wa-tile-title">Minta Info Akun</div>
+                        <div class="wa-tile-sub">Dapatkan laporan informasi dan setelan akun Clevora Anda</div>
+                    </div>
+                    <span>›</span>
+                </div>
+
+                <div class="wa-setting-tile" style="color:#DC2626;" @onclick='() => ShowAlert("Peringatan: Menghapus akun akan menghapus riwayat chat dan cadangan.")'>
+                    <div class="wa-tile-text">
+                        <div class="wa-tile-title" style="color:#DC2626;">Hapus Akun Saya</div>
+                        <div class="wa-tile-sub">Hapus akun ini secara permanen dari server Clevora</div>
+                    </div>
+                    <span>›</span>
+                </div>
+            </div>
+        }
+        else if (activeSubScreen == "privacy")
+        {
+            <!-- SUB-SCREEN 3: PRIVASI -->
+            <div class="wa-subscreen">
+                <div class="wa-section-header">Siapa yang dapat melihat info saya</div>
+
+                <div class="wa-setting-tile" @onclick='() => CyclePrivacy("lastSeen")'>
+                    <div class="wa-tile-text">
+                        <div class="wa-tile-title">Terakhir Dilihat &amp; Online</div>
+                        <div class="wa-tile-sub">@privacyLastSeen</div>
+                    </div>
+                    <span>›</span>
+                </div>
+
+                <div class="wa-setting-tile" @onclick='() => CyclePrivacy("profilePhoto")'>
+                    <div class="wa-tile-text">
+                        <div class="wa-tile-title">Foto Profil</div>
+                        <div class="wa-tile-sub">@privacyProfilePhoto</div>
+                    </div>
+                    <span>›</span>
+                </div>
+
+                <div class="wa-setting-tile" @onclick='() => CyclePrivacy("info")'>
+                    <div class="wa-tile-text">
+                        <div class="wa-tile-title">Info</div>
+                        <div class="wa-tile-sub">@privacyInfo</div>
+                    </div>
+                    <span>›</span>
+                </div>
+
+                <div class="wa-setting-tile" @onclick='() => CyclePrivacy("status")'>
+                    <div class="wa-tile-text">
+                        <div class="wa-tile-title">Status (Stories)</div>
+                        <div class="wa-tile-sub">@privacyStatus</div>
+                    </div>
+                    <span>›</span>
+                </div>
+
+                <div class="wa-setting-tile">
+                    <div class="wa-tile-text">
+                        <div class="wa-tile-title">Laporan Dibaca (Centang Biru)</div>
+                        <div class="wa-tile-sub">Jika dinonaktifkan, Anda tidak akan mengirim atau menerima laporan dibaca</div>
+                    </div>
+                    <input type="checkbox" class="wa-switch" @bind="readReceipts" @bind:after="SavePrivacySettings" />
+                </div>
+
+                <div class="wa-section-header">Pesan Sementara (Disappearing Messages)</div>
+
+                <div class="wa-setting-tile" @onclick="CycleTimer">
+                    <div class="wa-tile-text">
+                        <div class="wa-tile-title">Timer Pesan Default</div>
+                        <div class="wa-tile-sub">@defaultMessageTimer</div>
+                    </div>
+                    <span>›</span>
+                </div>
+
+                <div class="wa-section-header">Keamanan &amp; Kunci</div>
+
+                <div class="wa-setting-tile">
+                    <div class="wa-tile-text">
+                        <div class="wa-tile-title">Bisukan Penelepon Tak Dikenal</div>
+                        <div class="wa-tile-sub">Panggilan dari nomor tak dikenal akan dibisukan otomatis</div>
+                    </div>
+                    <input type="checkbox" class="wa-switch" @bind="silenceUnknownCallers" @bind:after="SavePrivacySettings" />
+                </div>
+
+                <div class="wa-setting-tile">
+                    <div class="wa-tile-text">
+                        <div class="wa-tile-title">Kunci Aplikasi (Biometrik / PIN)</div>
+                        <div class="wa-tile-sub">Gunakan sidik jari atau PIN untuk membuka WhatsApp Clevora</div>
+                    </div>
+                    <input type="checkbox" class="wa-switch" @bind="appLockEnabled" @bind:after="SavePrivacySettings" />
+                </div>
+
+                <div class="wa-setting-tile" @onclick='() => ShowAlert("Tidak ada kontak yang diblokir saat ini.")'>
+                    <div class="wa-tile-text">
+                        <div class="wa-tile-title">Kontak Diblokir</div>
+                        <div class="wa-tile-sub">0 kontak diblokir</div>
+                    </div>
+                    <span>›</span>
+                </div>
+            </div>
+        }
+        else if (activeSubScreen == "avatar")
+        {
+            <!-- SUB-SCREEN 4: AVATAR -->
+            <div class="wa-subscreen" style="text-align:center;">
+                <div style="font-size:3.5rem;margin:16px 0 8px;">🎭</div>
+                <h3 style="color:#111B21;font-size:1.1rem;margin-bottom:6px;">Ekspresikan Diri Anda dengan Avatar</h3>
+                <p style="font-size:0.85rem;color:#667781;margin-bottom:20px;padding:0 20px;">
+                    Gunakan avatar digital buatan Anda sebagai foto profil WhatsApp dan bagikan stiker avatar khusus ke teman.
+                </p>
+
+                <div style="display:flex;flex-direction:column;gap:10px;padding:0 16px;">
+                    <button class="wa-btn-primary" @onclick='() => ShowAlert("Editor Avatar Gravicode Digital dibuka.")'>
+                        ✨ Edit Avatar Saya
+                    </button>
+                    <button class="wa-btn-secondary" @onclick='() => ShowAlert("Avatar disetel sebagai foto profil.")'>
+                        Jadikan Foto Profil
+                    </button>
+                    <button class="wa-btn-secondary" @onclick='() => ShowAlert("Paket 36 stiker avatar telah disinkronkan.")'>
+                        Jelajahi Stiker Avatar
+                    </button>
+                </div>
+            </div>
+        }
+        else if (activeSubScreen == "lists")
+        {
+            <!-- SUB-SCREEN 5: DAFTAR (LISTS) -->
+            <div class="wa-subscreen">
+                <p style="font-size:0.85rem;color:#667781;margin-bottom:12px;">
+                    Filter percakapan Anda dengan cepat menggunakan label dan daftar khusus:
+                </p>
+
+                <div class="wa-list-badge-grid">
+                    <div class="wa-list-chip active">Semua</div>
+                    <div class="wa-list-chip">Belum Dibaca</div>
+                    <div class="wa-list-chip">Favorit ⭐</div>
+                    <div class="wa-list-chip">Grup 👥</div>
+                    <div class="wa-list-chip">Kerja / Kantor 💼</div>
+                    <div class="wa-list-chip">Keluarga 🏠</div>
+                </div>
+
+                <div class="wa-card-section" style="margin-top:20px;">
+                    <label class="wa-label-sm">Buat Label Kategori Baru</label>
+                    <div class="wa-input-row">
+                        <input class="wa-sub-input" @bind="newListName" placeholder="Contoh: Klien VIP" />
+                        <button class="wa-btn-save-sm" @onclick="AddNewList">Tambah</button>
+                    </div>
+                </div>
+            </div>
+        }
+        else if (activeSubScreen == "chats")
+        {
+            <!-- SUB-SCREEN 6: CHAT -->
+            <div class="wa-subscreen">
+                <div class="wa-section-header">Tampilan</div>
+
+                <div class="wa-setting-tile" @onclick="CycleTheme">
+                    <div class="wa-tile-text">
+                        <div class="wa-tile-title">Tema</div>
+                        <div class="wa-tile-sub">@appTheme</div>
+                    </div>
+                    <span>›</span>
+                </div>
+
+                <div class="wa-setting-tile" @onclick='() => ShowAlert("Wallpaper doodle WhatsApp default aktif.")'>
+                    <div class="wa-tile-text">
+                        <div class="wa-tile-title">Wallpaper</div>
+                        <div class="wa-tile-sub">Doodle WhatsApp Hijau Klasik</div>
+                    </div>
+                    <span>›</span>
+                </div>
+
+                <div class="wa-section-header">Pengaturan Obrolan</div>
+
+                <div class="wa-setting-tile">
+                    <div class="wa-tile-text">
+                        <div class="wa-tile-title">Enter untuk Mengirim</div>
+                        <div class="wa-tile-sub">Tombol Enter akan langsung mengirim pesan</div>
+                    </div>
+                    <input type="checkbox" class="wa-switch" @bind="enterIsSend" @bind:after="SaveChatSettings" />
+                </div>
+
+                <div class="wa-setting-tile">
+                    <div class="wa-tile-text">
+                        <div class="wa-tile-title">Visibilitas Media</div>
+                        <div class="wa-tile-sub">Tampilkan media baru di galeri perangkat</div>
+                    </div>
+                    <input type="checkbox" class="wa-switch" @bind="mediaVisibility" @bind:after="SaveChatSettings" />
+                </div>
+
+                <div class="wa-setting-tile">
+                    <div class="wa-tile-text">
+                        <div class="wa-tile-title">Pertahankan Chat Tetap Diarsipkan</div>
+                        <div class="wa-tile-sub">Chat yang diarsipkan tetap tersembunyi saat pesan baru masuk</div>
+                    </div>
+                    <input type="checkbox" class="wa-switch" @bind="keepArchived" @bind:after="SaveChatSettings" />
+                </div>
+
+                <div class="wa-setting-tile">
+                    <div class="wa-tile-text">
+                        <div class="wa-tile-title">Transkrip Pesan Suara AI (Voice Note)</div>
+                        <div class="wa-tile-sub">Tampilkan teks otomatis saat pesan suara diterima</div>
+                    </div>
+                    <input type="checkbox" class="wa-switch" @bind="voiceTranscripts" @bind:after="SaveChatSettings" />
+                </div>
+
+                <div class="wa-section-header">Cadangan &amp; Riwayat</div>
+
+                <div class="wa-setting-tile" @onclick='() => ShowAlert("Cadangan lokal SQLite berhasil dibuat.")'>
+                    <div class="wa-tile-text">
+                        <div class="wa-tile-title">Cadangan Chat</div>
+                        <div class="wa-tile-sub">Cadangan lokal terakhir: Hari ini @DateTime.Now.ToString("HH:mm")</div>
+                    </div>
+                    <span>›</span>
+                </div>
+
+                <div class="wa-setting-tile" @onclick='() => ShowAlert("Fitur transfer chat peer-to-peer siap.")'>
+                    <div class="wa-tile-text">
+                        <div class="wa-tile-title">Transfer Chat</div>
+                        <div class="wa-tile-sub">Transfer percakapan ke ponsel Android lain</div>
+                    </div>
+                    <span>›</span>
+                </div>
+            </div>
+        }
+        else if (activeSubScreen == "notifications")
+        {
+            <!-- SUB-SCREEN 7: NOTIFIKASI -->
+            <div class="wa-subscreen">
+                <div class="wa-setting-tile">
+                    <div class="wa-tile-text">
+                        <div class="wa-tile-title">Nada Percakapan</div>
+                        <div class="wa-tile-sub">Putar suara untuk pesan masuk dan keluar</div>
+                    </div>
+                    <input type="checkbox" class="wa-switch" @bind="convTones" @bind:after="SaveNotifSettings" />
+                </div>
+
+                <div class="wa-section-header">Pesan Pribadi</div>
+
+                <div class="wa-setting-tile" @onclick='() => ShowAlert("Nada notifikasi: Default WhatsApp Tone.")'>
+                    <div class="wa-tile-text">
+                        <div class="wa-tile-title">Nada Notifikasi</div>
+                        <div class="wa-tile-sub">Default (WhatsApp Chord)</div>
+                    </div>
+                    <span>›</span>
+                </div>
+
+                <div class="wa-setting-tile">
+                    <div class="wa-tile-text">
+                        <div class="wa-tile-title">Getar</div>
+                        <div class="wa-tile-sub">Default</div>
+                    </div>
+                    <span>›</span>
+                </div>
+
+                <div class="wa-setting-tile">
+                    <div class="wa-tile-text">
+                        <div class="wa-tile-title">Notifikasi Reaksi</div>
+                        <div class="wa-tile-sub">Tampilkan notifikasi saat pesan Anda menerima reaksi emoji</div>
+                    </div>
+                    <input type="checkbox" class="wa-switch" @bind="reactionNotifs" @bind:after="SaveNotifSettings" />
+                </div>
+
+                <div class="wa-section-header">Panggilan</div>
+
+                <div class="wa-setting-tile" @onclick='() => ShowAlert("Nada dering: WhatsApp Ring.")'>
+                    <div class="wa-tile-text">
+                        <div class="wa-tile-title">Nada Dering</div>
+                        <div class="wa-tile-sub">WhatsApp Ringtone</div>
+                    </div>
+                    <span>›</span>
+                </div>
+            </div>
+        }
+        else if (activeSubScreen == "storage")
+        {
+            <!-- SUB-SCREEN 8: PENYIMPANAN DAN DATA -->
+            <div class="wa-subscreen">
+                <div class="wa-card-section" style="background:#F0FDF4;border:1px solid #86EFAC;">
+                    <div style="font-size:0.8rem;color:#16A34A;font-weight:700;">PENYIMPANAN CHAT</div>
+                    <div style="font-size:1.2rem;font-weight:700;color:#111B21;margin-top:2px;">142.8 MB digunakan</div>
+                    <div style="background:#E2E8F0;border-radius:4px;height:8px;margin-top:6px;overflow:hidden;">
+                        <div style="background:#008069;width:25%;height:100%;"></div>
+                    </div>
+                </div>
+
+                <div class="wa-section-header">Kualitas Unggahan Media</div>
+
+                <div class="wa-setting-tile" @onclick="CycleMediaQuality">
+                    <div class="wa-tile-text">
+                        <div class="wa-tile-title">Kualitas Unggahan Foto &amp; Video</div>
+                        <div class="wa-tile-sub">@mediaQuality</div>
+                    </div>
+                    <span>›</span>
+                </div>
+
+                <div class="wa-section-header">Unduh Otomatis Media</div>
+
+                <div class="wa-setting-tile">
+                    <div class="wa-tile-text">
+                        <div class="wa-tile-title">Saat Menggunakan Data Seluler</div>
+                        <div class="wa-tile-sub">Foto</div>
+                    </div>
+                    <span>›</span>
+                </div>
+
+                <div class="wa-setting-tile">
+                    <div class="wa-tile-text">
+                        <div class="wa-tile-title">Saat Terhubung ke Wi-Fi</div>
+                        <div class="wa-tile-sub">Semua media (Foto, Audio, Video, Dokumen)</div>
+                    </div>
+                    <span>›</span>
+                </div>
+
+                <div class="wa-setting-tile">
+                    <div class="wa-tile-text">
+                        <div class="wa-tile-title">Gunakan Lebih Sedikit Data untuk Panggilan</div>
+                        <div class="wa-tile-sub">Optimalkan panggilan video &amp; suara di jaringan lambat</div>
+                    </div>
+                    <input type="checkbox" class="wa-switch" @bind="lowDataUsage" @bind:after="SaveStorageSettings" />
+                </div>
+            </div>
+        }
+        else if (activeSubScreen == "language")
+        {
+            <!-- SUB-SCREEN 9: BAHASA -->
+            <div class="wa-subscreen">
+                <div class="wa-radio-item @(selectedLanguage == "Bahasa Indonesia" ? "selected" : "")" @onclick='() => SelectLanguage("Bahasa Indonesia")'>
+                    <div>
+                        <div style="font-weight:600;">Bahasa Indonesia</div>
+                        <div style="font-size:0.75rem;color:#667781;">Bahasa perangkat</div>
+                    </div>
+                    @if (selectedLanguage == "Bahasa Indonesia") { <span style="color:#008069;font-weight:700;">✓</span> }
+                </div>
+
+                <div class="wa-radio-item @(selectedLanguage == "English" ? "selected" : "")" @onclick='() => SelectLanguage("English")'>
+                    <div>
+                        <div style="font-weight:600;">English</div>
+                        <div style="font-size:0.75rem;color:#667781;">United States</div>
+                    </div>
+                    @if (selectedLanguage == "English") { <span style="color:#008069;font-weight:700;">✓</span> }
+                </div>
+
+                <div class="wa-radio-item @(selectedLanguage == "Bahasa Melayu" ? "selected" : "")" @onclick='() => SelectLanguage("Bahasa Melayu")'>
+                    <div>
+                        <div style="font-weight:600;">Bahasa Melayu</div>
+                        <div style="font-size:0.75rem;color:#667781;">Malaysia</div>
+                    </div>
+                    @if (selectedLanguage == "Bahasa Melayu") { <span style="color:#008069;font-weight:700;">✓</span> }
+                </div>
+            </div>
+        }
+        else if (activeSubScreen == "help")
+        {
+            <!-- SUB-SCREEN 10: BANTUAN -->
+            <div class="wa-subscreen">
+                <div class="wa-setting-tile" @onclick='() => ShowAlert("Pusat Bantuan Clevora: https://clevora.gravicode.com/docs")'>
+                    <div class="wa-tile-text">
+                        <div class="wa-tile-title">Pusat Bantuan &amp; FAQ</div>
+                        <div class="wa-tile-sub">Panduan penggunaan, pemecahan masalah &amp; fitur</div>
+                    </div>
+                    <span>›</span>
+                </div>
+
+                <div class="wa-setting-tile" @onclick='() => ShowAlert("Hubungi kami: fadhil@gravicode.com")'>
+                    <div class="wa-tile-text">
+                        <div class="wa-tile-title">Hubungi Kami</div>
+                        <div class="wa-tile-sub">Pertanyaan atau laporan masalah aplikasi</div>
+                    </div>
+                    <span>›</span>
+                </div>
+
+                <div class="wa-setting-tile" @onclick='() => ShowAlert("Ketentuan Layanan & Kebijakan Privasi End-to-End Gravicode Studios.")'>
+                    <div class="wa-tile-text">
+                        <div class="wa-tile-title">Ketentuan dan Kebijakan Privasi</div>
+                    </div>
+                    <span>›</span>
+                </div>
+
+                <div class="wa-card-section" style="margin-top:16px;">
+                    <div style="font-weight:700;color:#008069;font-size:1rem;">Clevora WhatsApp v2.5.0 LTS</div>
+                    <div style="font-size:0.8rem;color:#54656F;margin-top:4px;">
+                        Arsitektur: .NET 10 LTS + MAUI Blazor Hybrid + SQLite WAL<br />
+                        Pengembang: <strong>Gravicode Studios</strong> dipimpin oleh <strong>Kang Fadhil</strong>
+                    </div>
+                </div>
+            </div>
+        }
+        else if (activeSubScreen == "invite")
+        {
+            <!-- SUB-SCREEN 11: UNDANG TEMAN -->
+            <div class="wa-subscreen" style="text-align:center;">
+                <div style="font-size:3.5rem;margin:16px 0 8px;">📲</div>
+                <h3 style="color:#111B21;font-size:1.1rem;margin-bottom:6px;">Undang Teman ke Clevora WhatsApp</h3>
+                <p style="font-size:0.85rem;color:#667781;margin-bottom:20px;padding:0 20px;">
+                    Ajak rekan kerja dan teman Anda bergabung untuk menikmati pengalaman chat cepat, bebas iklan, dan cerdas dengan Clevora AI.
+                </p>
+
+                <div class="wa-card-section" style="text-align:left;">
+                    <label class="wa-label-sm">Tautan Undangan</label>
+                    <div class="wa-input-row">
+                        <input class="wa-sub-input" readonly value="https://clevora.gravicode.com/invite" />
+                        <button class="wa-btn-save-sm" @onclick='() => ShowAlert("Tautan undangan berhasil disalin!")'>Salin</button>
+                    </div>
+                </div>
+            </div>
+        }
+        else if (activeSubScreen == "updates")
+        {
+            <!-- SUB-SCREEN 12: PEMBARUAN APLIKASI -->
+            <div class="wa-subscreen">
+                <div class="wa-card-section" style="background:#F0FDF4;border:1px solid #86EFAC;text-align:center;">
+                    <div style="font-size:2rem;margin-bottom:4px;">✅</div>
+                    <div style="font-weight:700;color:#16A34A;font-size:1rem;">Clevora WhatsApp Sudah Versi Terbaru</div>
+                    <div style="font-size:0.8rem;color:#64748B;margin-top:2px;">Versi Terpasang: 2.5.0-LTS Release (Build 20261126)</div>
+                </div>
+
+                <div class="wa-setting-tile" style="margin-top:16px;">
+                    <div class="wa-tile-text">
+                        <div class="wa-tile-title">Perbarui Otomatis melalui Wi-Fi</div>
+                        <div class="wa-tile-sub">Unduh pembaruan secara otomatis saat perangkat tersambung ke Wi-Fi</div>
+                    </div>
+                    <input type="checkbox" class="wa-switch" @bind="autoUpdateWifi" @bind:after="SaveUpdateSettings" />
+                </div>
+
+                <button class="wa-btn-primary" style="margin-top:20px;width:100%;" @onclick='() => ShowAlert("Memeriksa server pembaruan... Aplikasi Anda adalah versi paling mutakhir!")'>
+                    🔄 Periksa Pembaruan Sekarang
+                </button>
+            </div>
+        }
+        else if (activeSubScreen == "serversync")
+        {
+            <!-- SUB-SCREEN 13: SERVER & SINKRONISASI -->
+            <div class="wa-subscreen">
+                <p style="font-size:0.85rem;color:#667781;margin-bottom:12px;">
+                    Konfigurasikan alamat server backend Clevora untuk sinkronisasi pesan real-time:
+                </p>
+
+                <label class="wa-label-sm">URL Backend Server</label>
+                <input class="wa-sub-input" style="width:100%;margin-bottom:8px;" @bind="serverUrl" placeholder="http://10.0.2.2:5000 atau https://clevora.gravicode.com" />
+
+                <div style="display:flex;gap:6px;margin-bottom:12px;flex-wrap:wrap;">
+                    <button type="button" class="wa-btn-secondary" style="font-size:0.75rem;padding:4px 8px;"
+                            @onclick='() => serverUrl = "http://localhost:5000"'>
+                        💻 PC (localhost:5000)
+                    </button>
+                    <button type="button" class="wa-btn-secondary" style="font-size:0.75rem;padding:4px 8px;"
+                            @onclick='() => serverUrl = "http://10.0.2.2:5000"'>
+                        📱 Emulator Android (10.0.2.2:5000)
+                    </button>
+                </div>
+
+                <label class="wa-label-sm">Token JWT / Sesi</label>
+                <input class="wa-sub-input" style="width:100%;margin-bottom:12px;" type="password" @bind="serverToken" placeholder="Token otentikasi JWT" />
+
+                <button class="wa-btn-primary" style="width:100%;" @onclick="SaveServerConfig">
+                    Simpan &amp; Hubungkan ke Server
+                </button>
+            </div>
+        }
+    </main>
+</div>
+
+<style>
+.wa-settings-screen {
+    display: flex;
+    flex-direction: column;
+    height: 100vh;
+    background: #F0F2F5;
+    color: #111B21;
+    overflow: hidden;
+}
+
+.wa-settings-header {
+    background: #008069;
+    color: white;
+    padding: 12px 16px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.12);
+}
+
+.wa-settings-back-btn, .wa-settings-icon-btn {
+    background: none;
+    border: none;
+    cursor: pointer;
+    color: white;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 4px;
+}
+
+.wa-settings-title {
+    font-size: 1.15rem;
+    font-weight: 600;
+    margin: 0;
+}
+
+.wa-settings-body {
+    flex: 1;
+    overflow-y: auto;
+    padding-bottom: 24px;
+}
+
+.wa-settings-search-bar {
+    display: flex;
+    align-items: center;
+    background: white;
+    padding: 8px 12px;
+    border-bottom: 1px solid #E2E8F0;
+}
+
+.wa-settings-search-bar input {
+    flex: 1;
+    border: none;
+    outline: none;
+    font-size: 0.9rem;
+}
+
+.wa-settings-search-bar button {
+    background: none;
+    border: none;
+    color: #64748B;
+    cursor: pointer;
+    font-size: 1rem;
+}
+
+.wa-profile-card {
+    background: white;
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: 14px 16px;
+    border-bottom: 1px solid #E9EDEF;
+    cursor: pointer;
+}
+
+.wa-profile-avatar {
+    width: 60px;
+    height: 60px;
+    border-radius: 50%;
+    background: #008069;
+    color: white;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.5rem;
+    font-weight: 700;
+    flex-shrink: 0;
+}
+
+.wa-profile-meta {
+    flex: 1;
+    overflow: hidden;
+}
+
+.wa-profile-name {
+    font-size: 1.05rem;
+    font-weight: 600;
+    color: #111B21;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.wa-profile-status {
+    font-size: 0.85rem;
+    color: #667781;
+    margin-top: 2px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.wa-profile-qr {
+    padding: 6px;
+}
+
+.wa-settings-list {
+    background: white;
+    margin-top: 8px;
+    border-top: 1px solid #E9EDEF;
+    border-bottom: 1px solid #E9EDEF;
+}
+
+.wa-settings-item {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    padding: 14px 16px;
+    border-bottom: 1px solid #F0F2F5;
+    cursor: pointer;
+    transition: background 0.15s ease;
+}
+
+.wa-settings-item:last-child {
+    border-bottom: none;
+}
+
+.wa-settings-item:active {
+    background: #F0F2F5;
+}
+
+.wa-settings-icon {
+    width: 36px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+}
+
+.wa-settings-item-info {
+    flex: 1;
+}
+
+.wa-settings-item-title {
+    font-size: 0.95rem;
+    font-weight: 600;
+    color: #111B21;
+}
+
+.wa-settings-item-desc {
+    font-size: 0.8rem;
+    color: #667781;
+    margin-top: 2px;
+    line-height: 1.25;
+}
+
+.wa-settings-footer {
+    text-align: center;
+    padding: 24px 16px;
+}
+
+/* Sub-screen styles */
+.wa-subscreen {
+    padding: 16px;
+}
+
+.wa-section-header {
+    font-size: 0.8rem;
+    font-weight: 700;
+    color: #008069;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin: 16px 0 8px;
+}
+
+.wa-setting-tile {
+    background: white;
+    border-radius: 8px;
+    padding: 12px 14px;
+    margin-bottom: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    box-shadow: 0 1px 2px rgba(0,0,0,0.04);
+    cursor: pointer;
+}
+
+.wa-tile-text {
+    flex: 1;
+    margin-right: 12px;
+}
+
+.wa-tile-title {
+    font-size: 0.9rem;
+    font-weight: 600;
+    color: #111B21;
+}
+
+.wa-tile-sub {
+    font-size: 0.8rem;
+    color: #667781;
+    margin-top: 2px;
+}
+
+.wa-card-section {
+    background: white;
+    border-radius: 8px;
+    padding: 14px;
+    margin-bottom: 12px;
+    box-shadow: 0 1px 2px rgba(0,0,0,0.04);
+}
+
+.wa-label-sm {
+    font-size: 0.75rem;
+    font-weight: 700;
+    color: #54656F;
+    text-transform: uppercase;
+    margin-bottom: 6px;
+    display: block;
+}
+
+.wa-input-row {
+    display: flex;
+    gap: 8px;
+}
+
+.wa-sub-input {
+    flex: 1;
+    border: 1px solid #CBD5E1;
+    border-radius: 6px;
+    padding: 8px 10px;
+    font-size: 0.85rem;
+    outline: none;
+}
+
+.wa-sub-input:focus {
+    border-color: #008069;
+}
+
+.wa-btn-save-sm {
+    background: #008069;
+    color: white;
+    border: none;
+    border-radius: 6px;
+    padding: 0 12px;
+    font-size: 0.8rem;
+    font-weight: 600;
+    cursor: pointer;
+}
+
+.wa-help-text {
+    font-size: 0.75rem;
+    color: #8696A0;
+    margin-top: 6px;
+}
+
+.wa-chip-presets {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+    margin-top: 8px;
+}
+
+.wa-chip-presets span {
+    background: #F1F5F9;
+    color: #334155;
+    padding: 4px 10px;
+    border-radius: 14px;
+    font-size: 0.75rem;
+    cursor: pointer;
+}
+
+.wa-profile-header-center {
+    display: flex;
+    justify-content: center;
+    margin-bottom: 20px;
+}
+
+.wa-avatar-large {
+    width: 100px;
+    height: 100px;
+    border-radius: 50%;
+    background: #008069;
+    color: white;
+    font-size: 2.5rem;
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    position: relative;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+}
+
+.wa-avatar-edit-badge {
+    position: absolute;
+    bottom: 2px;
+    right: 2px;
+    background: #25D366;
+    border-radius: 50%;
+    width: 30px;
+    height: 30px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.85rem;
+    border: 2px solid white;
+    cursor: pointer;
+}
+
+.wa-btn-primary {
+    background: #008069;
+    color: white;
+    border: none;
+    border-radius: 8px;
+    padding: 10px 16px;
+    font-size: 0.9rem;
+    font-weight: 600;
+    cursor: pointer;
+}
+
+.wa-btn-secondary {
+    background: white;
+    color: #111B21;
+    border: 1px solid #CBD5E1;
+    border-radius: 8px;
+    padding: 8px 14px;
+    font-size: 0.85rem;
+    font-weight: 600;
+    cursor: pointer;
+}
+
+.wa-btn-link {
+    background: none;
+    border: none;
+    color: #008069;
+    font-weight: 600;
+    font-size: 0.85rem;
+    cursor: pointer;
+}
+
+.wa-switch {
+    width: 20px;
+    height: 20px;
+    accent-color: #008069;
+    cursor: pointer;
+}
+
+.wa-radio-item {
+    background: white;
+    border-radius: 8px;
+    padding: 12px 16px;
+    margin-bottom: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    cursor: pointer;
+}
+
+.wa-radio-item.selected {
+    border: 1px solid #008069;
+}
+
+.wa-list-badge-grid {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 10px;
+}
+
+.wa-list-chip {
+    background: white;
+    border: 1px solid #CBD5E1;
+    border-radius: 16px;
+    padding: 6px 14px;
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: #54656F;
+}
+
+.wa-list-chip.active {
+    background: #E8F5E9;
+    border-color: #008069;
+    color: #008069;
+}
+
+.wa-toast {
+    position: fixed;
+    bottom: 24px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: #111B21;
+    color: white;
+    padding: 10px 18px;
+    border-radius: 20px;
+    font-size: 0.85rem;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.25);
+    z-index: 9999;
+    animation: fadeIn 0.2s ease-in-out;
+}
+
+@@keyframes fadeIn {
+    from { opacity: 0; transform: translate(-50%, 10px); }
+    to { opacity: 1; transform: translate(-50%, 0); }
+}
+</style>
+
+@code {
+    private string activeSubScreen = "";
+    private string subScreenTitle = "";
+    private bool showSearch = false;
+    private string searchFilter = "";
+
+    // Toast feedback
+    private bool showToast = false;
+    private string toastMessage = "";
+
+    // 1. Profil state
+    private string currentUserName = "Kang Fadhil (Gravicode Studios)";
+    private string userBio = "Ada";
+    private string userPhone = "+62 812-3456-7890";
+    private string userSocialLink = "https://gravicode.com";
+
+    // 2. Akun state
+    private string currentUserEmail = "fadhil@gravicode.com";
+    private bool securityNotifications = true;
+
+    // 3. Privasi state
+    private string privacyLastSeen = "Semua Orang";
+    private string privacyProfilePhoto = "Kontak Saya";
+    private string privacyInfo = "Semua Orang";
+    private string privacyStatus = "Kontak Saya";
+    private bool readReceipts = true;
+    private string defaultMessageTimer = "Mati";
+    private bool silenceUnknownCallers = false;
+    private bool appLockEnabled = false;
+
+    // 4. Daftar
+    private string newListName = "";
+
+    // 5. Chat
+    private string appTheme = "Terang";
+    private bool enterIsSend = true;
+    private bool mediaVisibility = true;
+    private bool keepArchived = true;
+    private bool voiceTranscripts = true;
+
+    // 6. Notifikasi
+    private bool convTones = true;
+    private bool reactionNotifs = true;
+
+    // 7. Penyimpanan & Data
+    private string mediaQuality = "Kualitas HD";
+    private bool lowDataUsage = false;
+
+    // 8. Bahasa
+    private string selectedLanguage = "Bahasa Indonesia";
+
+    // 9. Pembaruan
+    private bool autoUpdateWifi = true;
+
+    // 10. Server Sync
+    private string serverUrl = "http://localhost:5000";
+    private string serverToken = "";
+
+    protected override void OnInitialized()
+    {
+        currentUserName = Db.GetState("CurrentUserName") ?? "Kang Fadhil (Gravicode Studios)";
+        currentUserEmail = Db.GetState("CurrentUserEmail") ?? "fadhil@gravicode.com";
+        userBio = Db.GetState("UserBio") ?? "Ada";
+        userPhone = Db.GetState("UserPhone") ?? "+62 812-3456-7890";
+        userSocialLink = Db.GetState("UserSocialLink") ?? "https://gravicode.com";
+
+        privacyLastSeen = Db.GetState("PrivacyLastSeen") ?? "Semua Orang";
+        privacyProfilePhoto = Db.GetState("PrivacyProfilePhoto") ?? "Kontak Saya";
+        privacyInfo = Db.GetState("PrivacyInfo") ?? "Semua Orang";
+        privacyStatus = Db.GetState("PrivacyStatus") ?? "Kontak Saya";
+        readReceipts = (Db.GetState("ReadReceipts") ?? "true") == "true";
+        defaultMessageTimer = Db.GetState("DefaultMessageTimer") ?? "Mati";
+        silenceUnknownCallers = (Db.GetState("SilenceUnknownCallers") ?? "false") == "true";
+        appLockEnabled = (Db.GetState("AppLockEnabled") ?? "false") == "true";
+
+        appTheme = Db.GetState("AppTheme") ?? "Terang";
+        enterIsSend = (Db.GetState("EnterIsSend") ?? "true") == "true";
+        mediaVisibility = (Db.GetState("MediaVisibility") ?? "true") == "true";
+        keepArchived = (Db.GetState("KeepArchived") ?? "true") == "true";
+        voiceTranscripts = (Db.GetState("VoiceTranscripts") ?? "true") == "true";
+
+        convTones = (Db.GetState("ConvTones") ?? "true") == "true";
+        reactionNotifs = (Db.GetState("ReactionNotifs") ?? "true") == "true";
+
+        mediaQuality = Db.GetState("MediaQuality") ?? "Kualitas HD";
+        lowDataUsage = (Db.GetState("LowDataUsage") ?? "false") == "true";
+
+        selectedLanguage = Db.GetState("SelectedLanguage") ?? "Bahasa Indonesia";
+        autoUpdateWifi = (Db.GetState("AutoUpdateWifi") ?? "true") == "true";
+
+        serverUrl = Db.GetState("ServerUrl") ?? "http://localhost:5000";
+        serverToken = Db.GetState("Token") ?? "";
+    }
+
+    private void HandleBack()
+    {
+        if (!string.IsNullOrEmpty(activeSubScreen))
+        {
+            activeSubScreen = "";
+            subScreenTitle = "";
+        }
+        else
+        {
+            Nav.NavigateTo("/");
+        }
+    }
+
+    private void OpenSubScreen(string key, string title)
+    {
+        activeSubScreen = key;
+        subScreenTitle = title;
+    }
+
+    private bool MatchesFilter(string title, string desc)
+    {
+        if (string.IsNullOrWhiteSpace(searchFilter)) return true;
+        var q = searchFilter.Trim().ToLowerInvariant();
+        return title.ToLowerInvariant().Contains(q) || desc.ToLowerInvariant().Contains(q);
+    }
+
+    private void SaveProfile()
+    {
+        Db.SetState("CurrentUserName", currentUserName);
+        Db.SetState("UserBio", userBio);
+        Db.SetState("UserPhone", userPhone);
+        Db.SetState("UserSocialLink", userSocialLink);
+        NotifyToast("Profil berhasil diperbarui!");
+    }
+
+    private void SaveAccountSettings()
+    {
+        Db.SetState("CurrentUserEmail", currentUserEmail);
+        Db.SetState("SecurityNotifications", securityNotifications.ToString());
+        NotifyToast("Setelan akun disimpan.");
+    }
+
+    private void CyclePrivacy(string field)
+    {
+        string[] options = ["Semua Orang", "Kontak Saya", "Tidak Ada"];
+        if (field == "lastSeen")
+        {
+            privacyLastSeen = NextOption(privacyLastSeen, options);
+            Db.SetState("PrivacyLastSeen", privacyLastSeen);
+        }
+        else if (field == "profilePhoto")
+        {
+            privacyProfilePhoto = NextOption(privacyProfilePhoto, options);
+            Db.SetState("PrivacyProfilePhoto", privacyProfilePhoto);
+        }
+        else if (field == "info")
+        {
+            privacyInfo = NextOption(privacyInfo, options);
+            Db.SetState("PrivacyInfo", privacyInfo);
+        }
+        else if (field == "status")
+        {
+            privacyStatus = NextOption(privacyStatus, options);
+            Db.SetState("PrivacyStatus", privacyStatus);
+        }
+        NotifyToast("Privasi diperbarui.");
+    }
+
+    private void CycleTimer()
+    {
+        string[] options = ["Mati", "24 Jam", "7 Hari", "90 Hari"];
+        defaultMessageTimer = NextOption(defaultMessageTimer, options);
+        Db.SetState("DefaultMessageTimer", defaultMessageTimer);
+        NotifyToast($"Timer pesan default: {defaultMessageTimer}");
+    }
+
+    private string NextOption(string current, string[] options)
+    {
+        var idx = Array.IndexOf(options, current);
+        if (idx == -1 || idx >= options.Length - 1) return options[0];
+        return options[idx + 1];
+    }
+
+    private void SavePrivacySettings()
+    {
+        Db.SetState("ReadReceipts", readReceipts.ToString());
+        Db.SetState("SilenceUnknownCallers", silenceUnknownCallers.ToString());
+        Db.SetState("AppLockEnabled", appLockEnabled.ToString());
+        NotifyToast("Setelan privasi diperbarui.");
+    }
+
+    private void CycleTheme()
+    {
+        string[] themes = ["Terang", "Gelap", "Default Sistem"];
+        appTheme = NextOption(appTheme, themes);
+        Db.SetState("AppTheme", appTheme);
+        NotifyToast($"Tema diubah ke {appTheme}");
+    }
+
+    private void SaveChatSettings()
+    {
+        Db.SetState("EnterIsSend", enterIsSend.ToString());
+        Db.SetState("MediaVisibility", mediaVisibility.ToString());
+        Db.SetState("KeepArchived", keepArchived.ToString());
+        Db.SetState("VoiceTranscripts", voiceTranscripts.ToString());
+        NotifyToast("Setelan chat diperbarui.");
+    }
+
+    private void SaveNotifSettings()
+    {
+        Db.SetState("ConvTones", convTones.ToString());
+        Db.SetState("ReactionNotifs", reactionNotifs.ToString());
+        NotifyToast("Setelan notifikasi diperbarui.");
+    }
+
+    private void CycleMediaQuality()
+    {
+        string[] qualities = ["Kualitas Standar", "Kualitas HD"];
+        mediaQuality = NextOption(mediaQuality, qualities);
+        Db.SetState("MediaQuality", mediaQuality);
+        NotifyToast($"Kualitas media: {mediaQuality}");
+    }
+
+    private void SaveStorageSettings()
+    {
+        Db.SetState("LowDataUsage", lowDataUsage.ToString());
+        NotifyToast("Setelan penyimpanan diperbarui.");
+    }
+
+    private void SelectLanguage(string lang)
+    {
+        selectedLanguage = lang;
+        Db.SetState("SelectedLanguage", selectedLanguage);
+        NotifyToast($"Bahasa disetel ke {selectedLanguage}");
+    }
+
+    private void SaveUpdateSettings()
+    {
+        Db.SetState("AutoUpdateWifi", autoUpdateWifi.ToString());
+        NotifyToast("Setelan pembaruan diperbarui.");
+    }
+
+    private async Task SaveServerConfig()
+    {
+        Db.SetState("ServerUrl", serverUrl);
+        Db.SetState("Token", serverToken);
+        ChatClient.Configure(serverUrl, serverToken);
+        await ChatClient.ConnectAsync();
+        NotifyToast("Server tersimpan & SignalR terhubung.");
+    }
+
+    private void AddNewList()
+    {
+        if (string.IsNullOrWhiteSpace(newListName)) return;
+        NotifyToast($"Daftar '{newListName}' berhasil dibuat!");
+        newListName = "";
+    }
+
+    private void ShowAlert(string msg)
+    {
+        NotifyToast(msg);
+    }
+
+    private void NotifyToast(string msg)
+    {
+        toastMessage = msg;
+        showToast = true;
+        _ = Task.Run(async () =>
+        {
+            await Task.Delay(2500);
+            showToast = false;
+            await InvokeAsync(StateHasChanged);
+        });
+        StateHasChanged();
+    }
+}

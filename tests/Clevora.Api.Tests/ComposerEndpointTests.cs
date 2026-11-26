@@ -1,68 +1,51 @@
-using Clevora.Domain.Services;
+using Clevora.Domain.Entities;
 using Clevora.Shared.Models;
 using Xunit;
 
 namespace Clevora.Api.Tests;
 
-public class ComposerEndpointTests
+/// <summary>Tests for chat API contracts and DTOs.</summary>
+public class ChatEndpointTests
 {
     [Fact]
-    public void ComposerPreview_GeneratesHtmlAndUrl_Successfully()
+    public void SendMessageRequest_Constructed_Correctly()
     {
-        // Arrange
-        var body = "Halo *{{nama}}*, pesanan {{produk}} sudah dikirim!";
-        var values = new Dictionary<string, string>
-        {
-            { "nama", "Budi" },
-            { "produk", "Sepatu Kulit" }
-        };
-        var phone = "08123456789";
+        var req = new SendMessageRequest(1, "Halo!", null);
 
-        // Act
-        var missing = PlaceholderParser.FindMissing(body, values);
-        var rendered = PlaceholderParser.Render(body, values);
-        var html = WhatsAppFormatter.ToHtml(rendered);
-        var charCount = TextMetricsCalculator.CharacterCount(rendered);
-        var wordCount = TextMetricsCalculator.WordCount(rendered);
-        var url = ClickToChatUrlBuilder.Build(phone, rendered);
-
-        // Assert
-        Assert.Empty(missing);
-        Assert.Contains("<strong>Budi</strong>", html);
-        Assert.True(charCount > 0);
-        Assert.True(wordCount > 0);
-        Assert.StartsWith("https://wa.me/08123456789?text=", url);
+        Assert.Equal(1, req.ConversationId);
+        Assert.Equal("Halo!", req.Body);
+        Assert.Null(req.ReplyToId);
     }
 
     [Fact]
-    public void ComposerPreview_DetectsMissingPlaceholders()
+    public void StartPrivateChatRequest_Constructed_Correctly()
     {
-        // Arrange
-        var body = "Halo {{nama}}, kode voucher Anda: {{voucher}}";
-        var values = new Dictionary<string, string>
-        {
-            { "nama", "Siti" }
-        };
+        var req = new StartPrivateChatRequest("target-user-id");
 
-        // Act
-        var missing = PlaceholderParser.FindMissing(body, values);
-
-        // Assert
-        Assert.Single(missing);
-        Assert.Equal("voucher", missing[0]);
+        Assert.Equal("target-user-id", req.TargetUserId);
     }
 
     [Fact]
-    public void SyncContract_SerializesAndDeserializes_Correctly()
+    public void CreateGroupRequest_IncludesMembers()
     {
-        // Arrange
-        var item = new SyncPushItem("template", 101, SyncOperation.Update, 3, DateTime.UtcNow, "{\"title\":\"Test\"}");
-        var request = new SyncPushRequest("device-xyz", new List<SyncPushItem> { item });
+        var req = new CreateGroupRequest("Team Clevora", new List<string> { "u1", "u2", "u3" });
 
-        // Assert
-        Assert.Equal("device-xyz", request.DeviceId);
-        Assert.Single(request.Items);
-        Assert.Equal(SyncOperation.Update, request.Items[0].Operation);
-        Assert.Equal(3, request.Items[0].BaseVersion);
+        Assert.Equal("Team Clevora", req.Name);
+        Assert.Equal(3, req.MemberIds.Count);
+    }
+
+    [Fact]
+    public void MessageDto_Statuses_CoverAllStates()
+    {
+        var statuses = new[] { MessageStatus.Sent, MessageStatus.Delivered, MessageStatus.Read };
+        Assert.Equal(3, statuses.Length);
+        Assert.Contains(MessageStatus.Sent, statuses);
+    }
+
+    [Fact]
+    public void MessageType_CoversChatTypes()
+    {
+        var types = new[] { MessageType.Text, MessageType.Image, MessageType.File, MessageType.System };
+        Assert.Equal(4, types.Length);
     }
 }

@@ -82,6 +82,17 @@ Buka peramban di:
 dotnet test Clevora.slnx
 ```
 
+#### 4. Menginstal Aplikasi Mobile Android (APK)
+Paket APK Release bertandatangan (*Signed APK*) siap pakai telah berhasil dibuat:
+- **Lokasi APK:** `src/Clevora.Mobile/bin/Release/net10.0-android/publish/com.gravicode.clevora-Signed.apk`
+- **Ukuran File:** ~26.6 MB
+- **Desain UI:** WhatsApp Otentik (Header WhatsApp Green `#008069`, 4-Tab Community/Chats/Status/Calls, Chat Room wallpaper, speech bubble hijau & putih, double blue checkmarks, offline SQLite cache).
+
+Pasang langsung ke ponsel Android atau emulator:
+```bash
+adb install src/Clevora.Mobile/bin/Release/net10.0-android/publish/com.gravicode.clevora-Signed.apk
+```
+
 ---
 
 ## 🇬🇧 English

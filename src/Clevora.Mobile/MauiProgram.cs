@@ -22,8 +22,8 @@ public static class MauiProgram
         // Local SQLite database (singleton — one connection per app lifetime)
         builder.Services.AddSingleton<LocalDatabaseService>();
 
-        // Sync orchestrator
-        builder.Services.AddSingleton<MobileSyncOrchestrator>();
+        // SignalR chat client
+        builder.Services.AddSingleton<ChatClientService>();
 
 #if DEBUG
         builder.Services.AddBlazorWebViewDeveloperTools();

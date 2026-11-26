@@ -4,86 +4,76 @@ using Xunit;
 
 namespace Clevora.Mobile.Tests;
 
-public class LocalSyncEngineTests
+/// <summary>Chat-related tests for the mobile local database layer.</summary>
+public class LocalMessageTests
 {
     [Fact]
-    public void SyncOutbox_RecordsPendingMutations()
+    public void MessageDto_IsMine_ReflectsCorrectSender()
     {
         // Arrange
-        var outbox = new List<SyncPushItem>();
-        var newTemplate = new MessageTemplate
-        {
-            Id = 1,
-            Title = "Followup Penawaran",
-            Body = "Halo {{nama}}, penawaran kami diskon 20%",
-            Version = 1,
-            UpdatedAt = DateTime.UtcNow
-        };
+        var myId = "user-123";
+        var dto = new MessageDto(
+            Id: 1,
+            ConversationId: 10,
+            SenderId: myId,
+            SenderName: "Budi",
+            SenderAvatar: null,
+            Body: "Halo dunia!",
+            Type: MessageType.Text,
+            Status: MessageStatus.Sent,
+            ReplyToId: null,
+            IsDeleted: false,
+            SentAt: DateTime.UtcNow,
+            IsMine: true);
 
-        // Act
-        outbox.Add(new SyncPushItem(
-            "template",
-            newTemplate.Id,
-            SyncOperation.Create,
-            0,
-            DateTime.UtcNow,
-            "{\"title\":\"Followup Penawaran\"}"));
-
-        // Assert
-        Assert.Single(outbox);
-        Assert.Equal(SyncOperation.Create, outbox[0].Operation);
-        Assert.Equal("template", outbox[0].EntityType);
+        Assert.True(dto.IsMine);
+        Assert.Equal(myId, dto.SenderId);
     }
 
     [Fact]
-    public void ConflictDetection_WhenServerVersionIsHigher_IdentifiesConflict()
+    public void MessageDto_OtherSender_IsNotMine()
     {
-        // Arrange
-        long localBaseVersion = 2;
-        long serverCurrentVersion = 4;
+        var dto = new MessageDto(
+            Id: 2,
+            ConversationId: 10,
+            SenderId: "other-user",
+            SenderName: "Siti",
+            SenderAvatar: null,
+            Body: "Balas pesan",
+            Type: MessageType.Text,
+            Status: MessageStatus.Delivered,
+            ReplyToId: null,
+            IsDeleted: false,
+            SentAt: DateTime.UtcNow,
+            IsMine: false);
 
-        // Act
-        bool isConflict = serverCurrentVersion > localBaseVersion;
-
-        // Assert
-        Assert.True(isConflict);
+        Assert.False(dto.IsMine);
+        Assert.Equal(MessageStatus.Delivered, dto.Status);
     }
 
     [Fact]
-    public void PullMerge_AppliesRemoteUpdates_Accurately()
+    public void MessageDto_ReplyTo_LinkedCorrectly()
     {
-        // Arrange
-        var localTemplates = new List<MessageTemplate>
-        {
-            new() { Id = 1, Title = "Template Lama", Body = "Body Lama", Version = 1 }
-        };
+        var parent = new MessageDto(1, 5, "u1", "Alice", null, "Pesan asli", MessageType.Text, MessageStatus.Read, null, false, DateTime.UtcNow, false);
+        var reply = new MessageDto(2, 5, "u2", "Bob", null, "Ini balasan", MessageType.Text, MessageStatus.Sent, 1, false, DateTime.UtcNow, false);
 
-        var pullResponse = new SyncPullResponse(
-            LatestServerVersion: 5,
-            Categories: new List<CategoryDto>(),
-            Templates: new List<TemplateDto>
-            {
-                new(1, "Template Baru Server", "Body Baru", 1, "Umum", false, false, null, 5, DateTime.UtcNow, DateTime.UtcNow, new List<string>())
-            },
-            Drafts: new List<DraftDto>(),
-            DeletedCategoryIds: new List<int>(),
-            DeletedTemplateIds: new List<int>(),
-            DeletedDraftIds: new List<int>());
+        Assert.Equal(parent.Id, reply.ReplyToId);
+    }
 
-        // Act
-        foreach (var remoteT in pullResponse.Templates)
-        {
-            var match = localTemplates.FirstOrDefault(t => t.Id == remoteT.Id);
-            if (match is not null)
-            {
-                match.Title = remoteT.Title;
-                match.Body = remoteT.Body;
-                match.Version = remoteT.Version;
-            }
-        }
+    [Fact]
+    public void ConversationSummary_UnreadCount_CorrectlyStored()
+    {
+        var summary = new ConversationSummary(
+            Id: 1,
+            Name: "Team Clevora",
+            IsGroup: true,
+            AvatarUrl: null,
+            LastMessage: "Build selesai!",
+            LastMessageAt: DateTime.UtcNow,
+            UnreadCount: 3,
+            IsOnline: false);
 
-        // Assert
-        Assert.Equal("Template Baru Server", localTemplates[0].Title);
-        Assert.Equal(5, localTemplates[0].Version);
+        Assert.Equal(3, summary.UnreadCount);
+        Assert.True(summary.IsGroup);
     }
 }

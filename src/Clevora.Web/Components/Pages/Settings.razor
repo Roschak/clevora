@@ -1,0 +1,638 @@
+@page "/settings"
+@using Clevora.Application.Interfaces
+@using Clevora.Infrastructure.Identity
+@using Microsoft.AspNetCore.Identity
+@inject ICurrentUserService CurrentUserService
+@inject UserManager<ClevoraUser> UserManager
+@inject NavigationManager Nav
+@rendermode InteractiveServer
+
+<PageTitle>Setelan WhatsApp — Clevora</PageTitle>
+
+<div class="web-settings-container">
+    <!-- Header -->
+    <div class="web-settings-header">
+        <button class="web-back-btn" @onclick="GoBack" title="Kembali ke Chat">
+            <svg viewBox="0 0 24 24" width="22" height="22" fill="white">
+                <path d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z"/>
+            </svg>
+        </button>
+        <h2>Setelan WhatsApp Clevora</h2>
+    </div>
+
+    @if (showToast)
+    {
+        <div class="web-settings-toast">@toastMessage</div>
+    }
+
+    <div class="web-settings-grid">
+        <!-- Sidebar Navigation -->
+        <div class="web-settings-nav">
+            <div class="web-profile-summary" @onclick='() => activeCategory = "profile"'>
+                <div class="web-avatar">@(string.IsNullOrWhiteSpace(displayName) ? "U" : displayName.Substring(0, 1).ToUpper())</div>
+                <div class="web-profile-text">
+                    <div class="web-name">@displayName</div>
+                    <div class="web-bio">@userBio</div>
+                </div>
+            </div>
+
+            <div class="web-nav-item @(activeCategory == "profile" ? "active" : "")" @onclick='() => activeCategory = "profile"'>
+                👤 <span>Profil</span>
+            </div>
+            <div class="web-nav-item @(activeCategory == "account" ? "active" : "")" @onclick='() => activeCategory = "account"'>
+                🔑 <span>Akun &amp; Keamanan</span>
+            </div>
+            <div class="web-nav-item @(activeCategory == "privacy" ? "active" : "")" @onclick='() => activeCategory = "privacy"'>
+                🔒 <span>Privasi</span>
+            </div>
+            <div class="web-nav-item @(activeCategory == "avatar" ? "active" : "")" @onclick='() => activeCategory = "avatar"'>
+                🎭 <span>Avatar</span>
+            </div>
+            <div class="web-nav-item @(activeCategory == "lists" ? "active" : "")" @onclick='() => activeCategory = "lists"'>
+                📋 <span>Daftar &amp; Filter Chat</span>
+            </div>
+            <div class="web-nav-item @(activeCategory == "chats" ? "active" : "")" @onclick='() => activeCategory = "chats"'>
+                💬 <span>Chat &amp; Wallpaper</span>
+            </div>
+            <div class="web-nav-item @(activeCategory == "notifications" ? "active" : "")" @onclick='() => activeCategory = "notifications"'>
+                🔔 <span>Notifikasi</span>
+            </div>
+            <div class="web-nav-item @(activeCategory == "storage" ? "active" : "")" @onclick='() => activeCategory = "storage"'>
+                💾 <span>Penyimpanan &amp; Data</span>
+            </div>
+            <div class="web-nav-item @(activeCategory == "language" ? "active" : "")" @onclick='() => activeCategory = "language"'>
+                🌐 <span>Bahasa Aplikasi</span>
+            </div>
+            <div class="web-nav-item @(activeCategory == "help" ? "active" : "")" @onclick='() => activeCategory = "help"'>
+                ❓ <span>Bantuan &amp; Info</span>
+            </div>
+            <div class="web-nav-item @(activeCategory == "invite" ? "active" : "")" @onclick='() => activeCategory = "invite"'>
+                👥 <span>Undang Teman</span>
+            </div>
+            <div class="web-nav-item @(activeCategory == "updates" ? "active" : "")" @onclick='() => activeCategory = "updates"'>
+                🔄 <span>Pembaruan Aplikasi</span>
+            </div>
+        </div>
+
+        <!-- Content Area -->
+        <div class="web-settings-content">
+            @if (activeCategory == "profile")
+            {
+                <div class="web-section-card">
+                    <h3>👤 Profil Pengguna</h3>
+                    <p class="web-card-desc">Informasi profil yang terlihat oleh kontak obrolan Anda.</p>
+
+                    <div class="web-form-group">
+                        <label>Nama Tampilan</label>
+                        <input class="web-input" @bind="displayName" />
+                    </div>
+
+                    <div class="web-form-group">
+                        <label>Info / Bio WhatsApp</label>
+                        <input class="web-input" @bind="userBio" />
+                        <div class="web-quick-tags">
+                            <span @onclick='() => displayName = "Kang Fadhil (Gravicode Studios)"'>Kang Fadhil</span>
+                            <span @onclick='() => userBio = "Ada"'>Ada</span>
+                            <span @onclick='() => userBio = "Sedang bekerja di Gravicode Studios"'>Sedang bekerja</span>
+                            <span @onclick='() => userBio = "Hanya pesan WhatsApp"'>Hanya pesan</span>
+                        </div>
+                    </div>
+
+                    <div class="web-form-group">
+                        <label>Nomor Telepon / ID Akun</label>
+                        <input class="web-input" @bind="phoneOrId" placeholder="+62 812-3456-7890" />
+                    </div>
+
+                    <button class="web-btn-save" @onclick="SaveSettings">Simpan Perubahan</button>
+                </div>
+            }
+            else if (activeCategory == "account")
+            {
+                <div class="web-section-card">
+                    <h3>🔑 Akun &amp; Keamanan</h3>
+                    <div class="web-toggle-row">
+                        <div>
+                            <div class="web-toggle-title">Notifikasi Keamanan</div>
+                            <div class="web-toggle-sub">Tampilkan notifikasi keamanan saat kode kontak berubah</div>
+                        </div>
+                        <input type="checkbox" @bind="securityNotifs" />
+                    </div>
+
+                    <div class="web-toggle-row">
+                        <div>
+                            <div class="web-toggle-title">Kunci Sandi (Passkeys)</div>
+                            <div class="web-toggle-sub">Masuk aman menggunakan biometrik Windows Hello / Kunci Perangkat</div>
+                        </div>
+                        <button class="web-btn-outline" @onclick='() => TriggerToast("Passkey WebAuthn aktif.")'>Kelola</button>
+                    </div>
+
+                    <div class="web-toggle-row">
+                        <div>
+                            <div class="web-toggle-title">Verifikasi Dua Langkah</div>
+                            <div class="web-toggle-sub">PIN 6-digit proteksi akun</div>
+                        </div>
+                        <button class="web-btn-outline" @onclick='() => TriggerToast("Verifikasi 2 langkah aktif.")'>Aktifkan</button>
+                    </div>
+
+                    <div class="web-toggle-row" style="cursor:pointer;" @onclick='() => TriggerToast("Permintaan data akun Clevora sedang disiapkan.")'>
+                        <div>
+                            <div class="web-toggle-title">Minta Info Akun</div>
+                            <div class="web-toggle-sub">Unduh laporan detail informasi akun dan setelan Anda</div>
+                        </div>
+                        <span>›</span>
+                    </div>
+                </div>
+            }
+            else if (activeCategory == "privacy")
+            {
+                <div class="web-section-card">
+                    <h3>🔒 Privasi Obrolan</h3>
+                    <div class="web-form-group">
+                        <label>Terakhir Dilihat &amp; Online</label>
+                        <select class="web-select" @bind="privacyLastSeen">
+                            <option value="Semua Orang">Semua Orang</option>
+                            <option value="Kontak Saya">Kontak Saya</option>
+                            <option value="Tidak Ada">Tidak Ada</option>
+                        </select>
+                    </div>
+
+                    <div class="web-form-group">
+                        <label>Foto Profil</label>
+                        <select class="web-select" @bind="privacyPhoto">
+                            <option value="Semua Orang">Semua Orang</option>
+                            <option value="Kontak Saya">Kontak Saya</option>
+                            <option value="Tidak Ada">Tidak Ada</option>
+                        </select>
+                    </div>
+
+                    <div class="web-toggle-row">
+                        <div>
+                            <div class="web-toggle-title">Laporan Dibaca (Centang Biru)</div>
+                            <div class="web-toggle-sub">Tampilkan tanda centang biru ganda saat pesan telah dibaca</div>
+                        </div>
+                        <input type="checkbox" @bind="readReceipts" />
+                    </div>
+
+                    <div class="web-form-group" style="margin-top:16px;">
+                        <label>Timer Pesan Sementara Default</label>
+                        <select class="web-select" @bind="disappearingTimer">
+                            <option value="Mati">Mati</option>
+                            <option value="24 Jam">24 Jam</option>
+                            <option value="7 Hari">7 Hari</option>
+                            <option value="90 Hari">90 Hari</option>
+                        </select>
+                    </div>
+
+                    <button class="web-btn-save" @onclick="SaveSettings">Simpan Pengaturan Privasi</button>
+                </div>
+            }
+            else if (activeCategory == "avatar")
+            {
+                <div class="web-section-card" style="text-align:center;padding:32px;">
+                    <div style="font-size:3.5rem;">🎭</div>
+                    <h3 style="margin-top:10px;">Avatar Digital WhatsApp</h3>
+                    <p class="web-card-desc">Buat dan personalisasi avatar virtual Anda untuk foto profil dan stiker interaktif.</p>
+                    <button class="web-btn-save" style="margin:16px auto 0;" @onclick='() => TriggerToast("Studio Avatar Digital Gravicode dibuka.")'>
+                        ✨ Buka Studio Avatar
+                    </button>
+                </div>
+            }
+            else if (activeCategory == "lists")
+            {
+                <div class="web-section-card">
+                    <h3>📋 Daftar &amp; Kategori Filter Chat</h3>
+                    <p class="web-card-desc">Atur filter obrolan agar percakapan penting mudah diakses.</p>
+                    <div class="web-quick-tags" style="margin-top:10px;">
+                        <span class="active">Semua Percakapan</span>
+                        <span>Belum Dibaca</span>
+                        <span>Favorit ⭐</span>
+                        <span>Grup Komunitas 👥</span>
+                        <span>Pekerjaan 💼</span>
+                    </div>
+                </div>
+            }
+            else if (activeCategory == "chats")
+            {
+                <div class="web-section-card">
+                    <h3>💬 Pengaturan Chat &amp; Tampilan</h3>
+                    <div class="web-form-group">
+                        <label>Tema</label>
+                        <select class="web-select" @bind="theme">
+                            <option value="Terang">Terang (WhatsApp Green)</option>
+                            <option value="Gelap">Gelap (Dark Mode)</option>
+                            <option value="Sistem">Default Sistem</option>
+                        </select>
+                    </div>
+
+                    <div class="web-toggle-row">
+                        <div>
+                            <div class="web-toggle-title">Enter untuk Mengirim</div>
+                            <div class="web-toggle-sub">Menekan tombol Enter akan langsung mengirim pesan</div>
+                        </div>
+                        <input type="checkbox" @bind="enterToSend" />
+                    </div>
+
+                    <div class="web-toggle-row">
+                        <div>
+                            <div class="web-toggle-title">Transkrip Pesan Suara AI</div>
+                            <div class="web-toggle-sub">Transkripsi voice note secara otomatis dengan Azure Speech AI</div>
+                        </div>
+                        <input type="checkbox" @bind="voiceTranscripts" />
+                    </div>
+
+                    <button class="web-btn-save" @onclick="SaveSettings">Simpan Setelan Chat</button>
+                </div>
+            }
+            else if (activeCategory == "notifications")
+            {
+                <div class="web-section-card">
+                    <h3>🔔 Pengaturan Notifikasi</h3>
+                    <div class="web-toggle-row">
+                        <div>
+                            <div class="web-toggle-title">Nada Percakapan</div>
+                            <div class="web-toggle-sub">Putar suara untuk pesan masuk &amp; keluar</div>
+                        </div>
+                        <input type="checkbox" @bind="convTones" />
+                    </div>
+
+                    <div class="web-toggle-row">
+                        <div>
+                            <div class="web-toggle-title">Notifikasi Reaksi Emoji</div>
+                            <div class="web-toggle-sub">Beri notifikasi saat pesan mendapat reaksi emoji</div>
+                        </div>
+                        <input type="checkbox" @bind="reactionNotifs" />
+                    </div>
+
+                    <button class="web-btn-save" @onclick="SaveSettings">Simpan Notifikasi</button>
+                </div>
+            }
+            else if (activeCategory == "storage")
+            {
+                <div class="web-section-card">
+                    <h3>💾 Penyimpanan &amp; Data</h3>
+                    <div style="background:#F0FDF4;border:1px solid #86EFAC;padding:12px;border-radius:8px;margin-bottom:14px;">
+                        <div style="font-size:0.8rem;color:#16A34A;font-weight:700;">PENYIMPANAN SQLITE LOKAL</div>
+                        <div style="font-size:1.1rem;font-weight:700;color:#111B21;margin-top:2px;">128 MB terpakai (WAL aman)</div>
+                    </div>
+
+                    <div class="web-form-group">
+                        <label>Kualitas Unggahan Media</label>
+                        <select class="web-select" @bind="mediaQuality">
+                            <option value="HD">Kualitas HD 4K (Rekomendasi)</option>
+                            <option value="Standar">Kualitas Standar (Kompresi)</option>
+                        </select>
+                    </div>
+
+                    <button class="web-btn-save" @onclick="SaveSettings">Simpan Pengaturan Data</button>
+                </div>
+            }
+            else if (activeCategory == "language")
+            {
+                <div class="web-section-card">
+                    <h3>🌐 Bahasa Antarmuka (App Language)</h3>
+                    <div class="web-form-group">
+                        <select class="web-select" @bind="selectedLang">
+                            <option value="id">Bahasa Indonesia (Default)</option>
+                            <option value="en">English (United States)</option>
+                            <option value="ms">Bahasa Melayu</option>
+                        </select>
+                    </div>
+                    <button class="web-btn-save" @onclick="SaveSettings">Ganti Bahasa</button>
+                </div>
+            }
+            else if (activeCategory == "help")
+            {
+                <div class="web-section-card">
+                    <h3>❓ Bantuan &amp; Info Aplikasi</h3>
+                    <p class="web-card-desc">Clevora WhatsApp Platform v2.5.0 LTS</p>
+                    <div style="font-size:0.85rem;color:#475569;line-height:1.6;">
+                        • Inisiator: <strong>Gravicode Studios</strong> dipimpin oleh <strong>Kang Fadhil</strong><br />
+                        • Framework: .NET 10 LTS + Blazor Server &amp; SignalR Chat Hub<br />
+                        • Fitur: Pesan Real-time, Voice Notes, Story Status, Video Call WebRTC, Copilot AI
+                    </div>
+                    <div style="margin-top:16px;">
+                        <button class="web-btn-outline" @onclick='() => Nav.NavigateTo("/swagger")'>Dokumentasi Swagger API</button>
+                    </div>
+                </div>
+            }
+            else if (activeCategory == "invite")
+            {
+                <div class="web-section-card" style="text-align:center;padding:28px;">
+                    <div style="font-size:3rem;">📲</div>
+                    <h3 style="margin-top:8px;">Undang Rekan ke Clevora WhatsApp</h3>
+                    <p class="web-card-desc">Bagikan link undangan obrolan resmi Clevora ke rekan Anda.</p>
+                    <input class="web-input" readonly value="https://clevora.gravicode.com/invite" style="text-align:center;max-width:360px;margin:12px auto;" />
+                    <button class="web-btn-save" style="margin:10px auto 0;" @onclick='() => TriggerToast("Tautan undangan berhasil disalin!")'>Salin Tautan</button>
+                </div>
+            }
+            else if (activeCategory == "updates")
+            {
+                <div class="web-section-card">
+                    <h3>🔄 Pembaruan Aplikasi</h3>
+                    <div style="background:#F0FDF4;border:1px solid #86EFAC;padding:12px;border-radius:8px;margin-bottom:14px;">
+                        <span style="color:#16A34A;font-weight:700;">✓ Versi 2.5.0 LTS Terpasang (Paling Mutakhir)</span>
+                    </div>
+                    <button class="web-btn-outline" @onclick='() => TriggerToast("Aplikasi berada pada rilis LTS terbaru.")'>Periksa Pembaruan Sekarang</button>
+                </div>
+            }
+        </div>
+    </div>
+</div>
+
+<style>
+.web-settings-container {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    background: #F8FAFC;
+    color: #0F172A;
+}
+
+.web-settings-header {
+    background: #008069;
+    color: white;
+    padding: 14px 20px;
+    display: flex;
+    align-items: center;
+    gap: 14px;
+}
+
+.web-settings-header h2 {
+    font-size: 1.2rem;
+    margin: 0;
+    font-weight: 600;
+}
+
+.web-back-btn {
+    background: none;
+    border: none;
+    color: white;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+}
+
+.web-settings-grid {
+    display: flex;
+    flex: 1;
+    overflow: hidden;
+}
+
+.web-settings-nav {
+    width: 320px;
+    background: white;
+    border-right: 1px solid #E2E8F0;
+    overflow-y: auto;
+    padding: 12px 8px;
+}
+
+.web-profile-summary {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px 14px;
+    background: #F0FDF4;
+    border: 1px solid #BBF7D0;
+    border-radius: 10px;
+    margin-bottom: 12px;
+    cursor: pointer;
+}
+
+.web-avatar {
+    width: 44px;
+    height: 44px;
+    border-radius: 50%;
+    background: #008069;
+    color: white;
+    font-weight: 700;
+    font-size: 1.2rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.web-name {
+    font-weight: 600;
+    font-size: 0.95rem;
+    color: #0F172A;
+}
+
+.web-bio {
+    font-size: 0.8rem;
+    color: #64748B;
+}
+
+.web-nav-item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px 16px;
+    border-radius: 8px;
+    font-size: 0.9rem;
+    font-weight: 500;
+    color: #334155;
+    cursor: pointer;
+    transition: background 0.15s ease;
+    margin-bottom: 2px;
+}
+
+.web-nav-item:hover {
+    background: #F1F5F9;
+}
+
+.web-nav-item.active {
+    background: #E8F5E9;
+    color: #008069;
+    font-weight: 600;
+}
+
+.web-settings-content {
+    flex: 1;
+    overflow-y: auto;
+    padding: 24px 32px;
+}
+
+.web-section-card {
+    background: white;
+    border: 1px solid #E2E8F0;
+    border-radius: 12px;
+    padding: 24px;
+    max-width: 640px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+}
+
+.web-section-card h3 {
+    font-size: 1.15rem;
+    font-weight: 600;
+    margin-bottom: 6px;
+    color: #0F172A;
+}
+
+.web-card-desc {
+    font-size: 0.85rem;
+    color: #64748B;
+    margin-bottom: 20px;
+}
+
+.web-form-group {
+    margin-bottom: 16px;
+}
+
+.web-form-group label {
+    display: block;
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: #475569;
+    margin-bottom: 6px;
+}
+
+.web-input, .web-select {
+    width: 100%;
+    border: 1px solid #CBD5E1;
+    border-radius: 8px;
+    padding: 10px 12px;
+    font-size: 0.9rem;
+    outline: none;
+    box-sizing: border-box;
+}
+
+.web-input:focus, .web-select:focus {
+    border-color: #008069;
+}
+
+.web-toggle-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 14px 0;
+    border-bottom: 1px solid #F1F5F9;
+}
+
+.web-toggle-title {
+    font-size: 0.9rem;
+    font-weight: 600;
+    color: #0F172A;
+}
+
+.web-toggle-sub {
+    font-size: 0.8rem;
+    color: #64748B;
+    margin-top: 2px;
+}
+
+.web-btn-save {
+    background: #008069;
+    color: white;
+    border: none;
+    border-radius: 8px;
+    padding: 10px 20px;
+    font-size: 0.9rem;
+    font-weight: 600;
+    cursor: pointer;
+    margin-top: 14px;
+}
+
+.web-btn-outline {
+    background: white;
+    border: 1px solid #CBD5E1;
+    border-radius: 6px;
+    padding: 6px 14px;
+    font-size: 0.85rem;
+    font-weight: 600;
+    cursor: pointer;
+}
+
+.web-quick-tags {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+    margin-top: 8px;
+}
+
+.web-quick-tags span {
+    background: #F1F5F9;
+    padding: 4px 10px;
+    border-radius: 12px;
+    font-size: 0.75rem;
+    color: #475569;
+    cursor: pointer;
+}
+
+.web-quick-tags span.active {
+    background: #E8F5E9;
+    color: #008069;
+    font-weight: 600;
+}
+
+.web-settings-toast {
+    position: fixed;
+    bottom: 24px;
+    right: 32px;
+    background: #008069;
+    color: white;
+    padding: 12px 20px;
+    border-radius: 8px;
+    font-size: 0.9rem;
+    font-weight: 500;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+    z-index: 9999;
+}
+</style>
+
+@code {
+    private string activeCategory = "profile";
+    private bool showToast = false;
+    private string toastMessage = "";
+
+    private string displayName = "Kang Fadhil (Gravicode Studios)";
+    private string userBio = "Ada";
+    private string phoneOrId = "+62 812-3456-7890";
+    private bool securityNotifs = true;
+    private string privacyLastSeen = "Semua Orang";
+    private string privacyPhoto = "Kontak Saya";
+    private bool readReceipts = true;
+    private string disappearingTimer = "Mati";
+    private string theme = "Terang";
+    private bool enterToSend = true;
+    private bool voiceTranscripts = true;
+    private bool convTones = true;
+    private bool reactionNotifs = true;
+    private string mediaQuality = "HD";
+    private string selectedLang = "id";
+
+    protected override async Task OnInitializedAsync()
+    {
+        var currentId = CurrentUserService.UserId;
+        if (!string.IsNullOrEmpty(currentId))
+        {
+            var user = await UserManager.FindByIdAsync(currentId);
+            if (user != null)
+            {
+                displayName = user.DisplayName ?? user.UserName ?? "Pengguna Clevora";
+                userBio = user.Bio ?? "Ada";
+            }
+        }
+    }
+
+    private void GoBack()
+    {
+        Nav.NavigateTo("/");
+    }
+
+    private void SaveSettings()
+    {
+        TriggerToast("Setelan WhatsApp berhasil disimpan.");
+    }
+
+    private void TriggerToast(string msg)
+    {
+        toastMessage = msg;
+        showToast = true;
+        _ = Task.Run(async () =>
+        {
+            await Task.Delay(2500);
+            showToast = false;
+            await InvokeAsync(StateHasChanged);
+        });
+    }
+}

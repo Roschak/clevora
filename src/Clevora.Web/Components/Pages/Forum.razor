@@ -1,0 +1,759 @@
+@page "/forum"
+@page "/forum/{ThreadId:int}"
+@using Clevora.Application.Interfaces
+@using Clevora.Shared.Models
+@using Clevora.Web.Services
+@inject IForumWebService ForumService
+@inject ICurrentUserService CurrentUser
+@inject NavigationManager Nav
+@rendermode InteractiveServer
+
+<PageTitle>Forum Komunitas — Clevora</PageTitle>
+
+<div class="web-forum-screen">
+    <!-- Top Forum Hero Bar -->
+    <header class="web-forum-hero">
+        <div class="web-forum-hero-content">
+            <div class="web-forum-hero-badge">COMMUNITY FORUM</div>
+            <h1>Forum Komunitas Clevora</h1>
+            <p>Terpisah &amp; berbeda dari chat grup: diskusi topik terstruktur, pengajuan ide fitur, dan tanya jawab teknis dengan sistem voting.</p>
+        </div>
+        <button class="web-btn-new-topic" @onclick="() => showCreateModal = true">
+            <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor">
+                <path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/>
+            </svg>
+            <span>+ Buat Topik Baru</span>
+        </button>
+    </header>
+
+    <!-- Category Filter Bar -->
+    <div class="web-forum-category-bar">
+        @foreach (var cat in categories)
+        {
+            <button class="web-cat-pill @(activeCategory == cat ? "active" : "")" 
+                    @onclick="() => FilterCategory(cat)">
+                @cat
+            </button>
+        }
+    </div>
+
+    <!-- Main Content: Threads List & Detail Split View -->
+    <div class="web-forum-body">
+        <!-- Threads Stream -->
+        <div class="web-forum-threads-col">
+            @if (threads.Count == 0)
+            {
+                <div class="web-forum-empty">
+                    <div style="font-size:3rem;margin-bottom:8px;">💡</div>
+                    <h3>Belum ada topik diskusi di kategori ini</h3>
+                    <p>Jadilah yang pertama memulai pembahasan!</p>
+                    <button class="web-btn-new-topic" style="margin-top:12px;" @onclick="() => showCreateModal = true">+ Buat Topik</button>
+                </div>
+            }
+            else
+            {
+                @foreach (var t in threads)
+                {
+                    <div class="web-thread-card @(selectedThread?.Id == t.Id ? "selected" : "")" @onclick="() => SelectThread(t)">
+                        <div class="web-thread-card-header">
+                            <span class="web-thread-cat-badge @GetCategoryClass(t.Category)">@t.Category</span>
+                            <span class="web-thread-time">@FormatTime(t.CreatedAt)</span>
+                        </div>
+
+                        <div class="web-thread-author-row">
+                            <div class="web-avatar-sm" style="background:@GetAvatarBg(t.AuthorName)">
+                                @GetInitials(t.AuthorName)
+                            </div>
+                            <span class="web-thread-author-name">@t.AuthorName</span>
+                            @if (t.AuthorName.Contains("Fadhil") || t.AuthorName.Contains("Gravicode"))
+                            {
+                                <span class="web-dev-badge">★ DEV</span>
+                            }
+                        </div>
+
+                        <h3 class="web-thread-title">@t.Title</h3>
+                        <p class="web-thread-snippet">@t.Content</p>
+
+                        @if (!string.IsNullOrWhiteSpace(t.Tags))
+                        {
+                            <div class="web-thread-tags">
+                                @foreach (var tag in t.Tags.Split(' ', StringSplitOptions.RemoveEmptyEntries))
+                                {
+                                    <span class="web-thread-tag">@tag</span>
+                                }
+                            </div>
+                        }
+
+                        <div class="web-thread-footer">
+                            <button class="web-upvote-btn @(t.HasUpvoted ? "upvoted" : "")" 
+                                    @onclick="() => ToggleUpvote(t.Id)" 
+                                    @onclick:stopPropagation>
+                                <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor">
+                                    <path d="M12 4l-8 8h5v8h6v-8h5z"/>
+                                </svg>
+                                <span>▲ @t.Upvotes</span>
+                            </button>
+
+                            <div class="web-replies-count">
+                                <svg viewBox="0 0 24 24" width="15" height="15" fill="currentColor">
+                                    <path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2z"/>
+                                </svg>
+                                <span>@t.CommentCount balasan</span>
+                            </div>
+
+                            <span class="web-view-thread-link">Buka Diskusi →</span>
+                        </div>
+                    </div>
+                }
+            }
+        </div>
+
+        <!-- Thread Discussion Pane -->
+        <div class="web-forum-detail-col">
+            @if (selectedThread != null)
+            {
+                <div class="web-thread-detail-container">
+                    <!-- Main Thread Post -->
+                    <div class="web-thread-post-box">
+                        <div class="web-thread-card-header">
+                            <span class="web-thread-cat-badge @GetCategoryClass(selectedThread.Category)">@selectedThread.Category</span>
+                            <span class="web-thread-time">Diposting @FormatTime(selectedThread.CreatedAt)</span>
+                        </div>
+
+                        <div class="web-thread-author-row" style="margin-top:10px;">
+                            <div class="web-avatar-sm" style="width:36px;height:36px;font-size:0.9rem;background:@GetAvatarBg(selectedThread.AuthorName)">
+                                @GetInitials(selectedThread.AuthorName)
+                            </div>
+                            <div>
+                                <div style="font-weight:700;font-size:0.95rem;color:#1E293B;">
+                                    @selectedThread.AuthorName
+                                    @if (selectedThread.AuthorName.Contains("Fadhil") || selectedThread.AuthorName.Contains("Gravicode"))
+                                    {
+                                        <span class="web-dev-badge">★ DEV</span>
+                                    }
+                                </div>
+                            </div>
+                        </div>
+
+                        <h2 class="web-detail-title">@selectedThread.Title</h2>
+                        <div class="web-detail-content">@selectedThread.Content</div>
+
+                        @if (!string.IsNullOrWhiteSpace(selectedThread.Tags))
+                        {
+                            <div class="web-thread-tags" style="margin-top:14px;">
+                                @foreach (var tag in selectedThread.Tags.Split(' ', StringSplitOptions.RemoveEmptyEntries))
+                                {
+                                    <span class="web-thread-tag">@tag</span>
+                                }
+                            </div>
+                        }
+
+                        <div style="margin-top:16px;">
+                            <button class="web-upvote-btn @(selectedThread.HasUpvoted ? "upvoted" : "")" 
+                                    @onclick="() => ToggleUpvote(selectedThread.Id)">
+                                <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor">
+                                    <path d="M12 4l-8 8h5v8h6v-8h5z"/>
+                                </svg>
+                                <span>▲ @selectedThread.Upvotes Dukungan Upvote</span>
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Threaded Comments -->
+                    <div class="web-comments-stream">
+                        <div class="web-comments-header">
+                            💬 Diskusi &amp; Balasan Komunitas (@comments.Count)
+                        </div>
+
+                        @if (comments.Count == 0)
+                        {
+                            <div style="text-align:center;padding:24px;color:#64748B;font-size:0.9rem;">
+                                Belum ada balasan pada topik ini. Jadilah yang pertama memberikan pendapat atau jawaban!
+                            </div>
+                        }
+                        else
+                        {
+                            @foreach (var c in comments)
+                            {
+                                <div class="web-comment-card">
+                                    <div class="web-comment-author-row">
+                                        <div class="web-avatar-sm" style="width:28px;height:28px;font-size:0.75rem;background:@GetAvatarBg(c.AuthorName)">
+                                            @GetInitials(c.AuthorName)
+                                        </div>
+                                        <span style="font-weight:700;font-size:0.85rem;color:#1E293B;">@c.AuthorName</span>
+                                        <span style="font-size:0.75rem;color:#94A3B8;margin-left:auto;">@FormatTime(c.CreatedAt)</span>
+                                    </div>
+                                    <div class="web-comment-content">
+                                        @c.Content
+                                    </div>
+                                </div>
+                            }
+                        }
+                    </div>
+
+                    <!-- Bottom Reply Box -->
+                    <div class="web-thread-reply-bar">
+                        <input class="web-reply-input" 
+                               placeholder="Tulis balasan atau masukan teknis..." 
+                               @bind="newCommentText" 
+                               @onkeyup='(e) => { if (e.Key == "Enter") SubmitComment(); }' />
+                        <button class="web-reply-btn" @onclick="SubmitComment" disabled="@string.IsNullOrWhiteSpace(newCommentText)">
+                            Balas
+                        </button>
+                    </div>
+                </div>
+            }
+            else
+            {
+                <div class="web-forum-empty" style="height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;">
+                    <div style="font-size:3rem;margin-bottom:8px;">📋</div>
+                    <h3>Pilih Topik Diskusi</h3>
+                    <p>Klik salah satu topik di sisi kiri untuk membaca isi lengkap dan memberikan tanggapan.</p>
+                </div>
+            }
+        </div>
+    </div>
+</div>
+
+<!-- Modal Buat Topik Baru -->
+@if (showCreateModal)
+{
+    <div class="web-modal-backdrop" @onclick="() => showCreateModal = false">
+        <div class="web-forum-new-modal" @onclick:stopPropagation>
+            <div class="web-forum-modal-header">
+                <h3>📝 Buat Topik Forum Baru</h3>
+                <button class="web-modal-close" @onclick="() => showCreateModal = false">✕</button>
+            </div>
+            <div class="web-forum-modal-body">
+                <label class="web-form-label">Kategori Forum</label>
+                <select class="web-form-select" @bind="newCategory">
+                    <option value="📢 Pengumuman">📢 Pengumuman Resmi</option>
+                    <option value="💡 Ide &amp; Fitur">💡 Ide &amp; Usulan Fitur</option>
+                    <option value="🛠️ Q&amp;A Teknis">🛠️ Tanya Jawab / Q&amp;A Teknis</option>
+                    <option value="💬 Diskusi Komunitas">💬 Diskusi Komunitas &amp; Santai</option>
+                </select>
+
+                <label class="web-form-label" style="margin-top:12px;">Judul Topik</label>
+                <input class="web-form-input" @bind="newTitle" placeholder="Contoh: Best Practice EF Core & SQLite WAL di .NET 10" />
+
+                <label class="web-form-label" style="margin-top:12px;">Isi / Konten Diskusi</label>
+                <textarea class="web-form-textarea" @bind="newContent" placeholder="Jelaskan gagasan atau pertanyaan Anda secara rinci..."></textarea>
+
+                <label class="web-form-label" style="margin-top:12px;">Tagar (Opsional)</label>
+                <input class="web-form-input" @bind="newTags" placeholder="Contoh: #dotnet10 #sqlite #cleanarchitecture" />
+
+                <div style="display:flex;justify-content:flex-end;gap:10px;margin-top:18px;">
+                    <button class="web-btn-secondary" @onclick="() => showCreateModal = false">Batal</button>
+                    <button class="web-btn-new-topic" @onclick="SubmitNewThread" disabled="@(string.IsNullOrWhiteSpace(newTitle) || string.IsNullOrWhiteSpace(newContent))">
+                        🚀 Publikasikan Topik
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+<style>
+    .web-forum-screen {
+        display: flex;
+        flex-direction: column;
+        height: 100%;
+        background: #F8FAFC;
+        overflow: hidden;
+    }
+    .web-forum-hero {
+        background: linear-gradient(135deg, #0F766E 0%, #0D9488 100%);
+        color: white;
+        padding: 20px 28px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    }
+    .web-forum-hero-badge {
+        display: inline-block;
+        background: rgba(255,255,255,0.2);
+        color: #CCFBF1;
+        font-size: 0.72rem;
+        font-weight: 800;
+        letter-spacing: 0.8px;
+        padding: 3px 10px;
+        border-radius: 12px;
+        margin-bottom: 6px;
+    }
+    .web-forum-hero h1 {
+        font-size: 1.45rem;
+        font-weight: 800;
+        margin: 0;
+    }
+    .web-forum-hero p {
+        font-size: 0.85rem;
+        color: #E2E8F0;
+        margin: 4px 0 0;
+    }
+    .web-btn-new-topic {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        background: #10B981;
+        color: white;
+        border: none;
+        border-radius: 20px;
+        padding: 10px 20px;
+        font-size: 0.88rem;
+        font-weight: 700;
+        cursor: pointer;
+        box-shadow: 0 4px 10px rgba(16,185,129,0.3);
+        transition: transform 0.1s ease;
+    }
+    .web-btn-new-topic:hover {
+        transform: translateY(-1px);
+        background: #059669;
+    }
+    .web-btn-secondary {
+        background: #E2E8F0;
+        color: #475569;
+        border: none;
+        border-radius: 20px;
+        padding: 10px 18px;
+        font-size: 0.88rem;
+        font-weight: 600;
+        cursor: pointer;
+    }
+    .web-forum-category-bar {
+        display: flex;
+        gap: 8px;
+        padding: 12px 28px;
+        background: #FFFFFF;
+        border-bottom: 1px solid #E2E8F0;
+        overflow-x: auto;
+    }
+    .web-cat-pill {
+        border: 1px solid #CBD5E1;
+        background: #F1F5F9;
+        color: #334155;
+        font-size: 0.82rem;
+        font-weight: 600;
+        padding: 6px 16px;
+        border-radius: 20px;
+        cursor: pointer;
+        transition: all 0.15s ease;
+    }
+    .web-cat-pill.active {
+        background: #0D9488;
+        color: white;
+        border-color: #0D9488;
+    }
+    .web-forum-body {
+        flex: 1;
+        display: flex;
+        overflow: hidden;
+    }
+    .web-forum-threads-col {
+        width: 480px;
+        border-right: 1px solid #E2E8F0;
+        background: #FFFFFF;
+        overflow-y: auto;
+        padding: 16px;
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+        flex-shrink: 0;
+    }
+    .web-thread-card {
+        background: #FFFFFF;
+        border: 1px solid #E2E8F0;
+        border-radius: 12px;
+        padding: 14px 16px;
+        cursor: pointer;
+        transition: all 0.15s ease;
+    }
+    .web-thread-card:hover {
+        border-color: #0D9488;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+    }
+    .web-thread-card.selected {
+        border-color: #0D9488;
+        background: #F0FDF4;
+    }
+    .web-thread-card-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin-bottom: 8px;
+    }
+    .web-thread-cat-badge {
+        font-size: 0.72rem;
+        font-weight: 700;
+        padding: 2px 8px;
+        border-radius: 10px;
+    }
+    .web-cat-announcement { background: #FEF3C7; color: #92400E; }
+    .web-cat-idea { background: #E0E7FF; color: #4338CA; }
+    .web-cat-qa { background: #DCFCE7; color: #166534; }
+    .web-cat-general { background: #F1F5F9; color: #334155; }
+    .web-thread-time {
+        font-size: 0.75rem;
+        color: #94A3B8;
+    }
+    .web-thread-author-row {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        margin-bottom: 6px;
+    }
+    .web-avatar-sm {
+        width: 26px;
+        height: 26px;
+        border-radius: 50%;
+        color: white;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-weight: 700;
+        font-size: 0.72rem;
+    }
+    .web-thread-author-name {
+        font-size: 0.84rem;
+        font-weight: 600;
+        color: #334155;
+    }
+    .web-dev-badge {
+        background: #0D9488;
+        color: white;
+        font-size: 0.65rem;
+        font-weight: 800;
+        padding: 1px 6px;
+        border-radius: 8px;
+    }
+    .web-thread-title {
+        font-size: 1rem;
+        font-weight: 700;
+        color: #0F172A;
+        margin: 4px 0 6px;
+        line-height: 1.35;
+    }
+    .web-thread-snippet {
+        font-size: 0.84rem;
+        color: #64748B;
+        line-height: 1.4;
+        display: -webkit-box;
+        -webkit-line-clamp: 2;
+        -webkit-box-orient: vertical;
+        overflow: hidden;
+        margin-bottom: 8px;
+    }
+    .web-thread-tags {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px;
+        margin-bottom: 10px;
+    }
+    .web-thread-tag {
+        background: #EFF6FF;
+        color: #1D4ED8;
+        font-size: 0.72rem;
+        font-weight: 600;
+        padding: 2px 7px;
+        border-radius: 6px;
+    }
+    .web-thread-footer {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        border-top: 1px solid #F1F5F9;
+        padding-top: 10px;
+    }
+    .web-upvote-btn {
+        display: flex;
+        align-items: center;
+        gap: 4px;
+        background: #F8FAFC;
+        border: 1px solid #CBD5E1;
+        color: #475569;
+        padding: 4px 10px;
+        border-radius: 14px;
+        font-size: 0.78rem;
+        font-weight: 700;
+        cursor: pointer;
+    }
+    .web-upvote-btn.upvoted {
+        background: #DCFCE7;
+        color: #166534;
+        border-color: #86EFAC;
+    }
+    .web-replies-count {
+        display: flex;
+        align-items: center;
+        gap: 4px;
+        font-size: 0.78rem;
+        color: #64748B;
+        font-weight: 500;
+    }
+    .web-view-thread-link {
+        margin-left: auto;
+        font-size: 0.8rem;
+        color: #0D9488;
+        font-weight: 600;
+    }
+
+    /* Detail Col */
+    .web-forum-detail-col {
+        flex: 1;
+        background: #F8FAFC;
+        overflow-y: auto;
+        padding: 24px;
+    }
+    .web-thread-detail-container {
+        max-width: 760px;
+        margin: 0 auto;
+        display: flex;
+        flex-direction: column;
+        gap: 16px;
+    }
+    .web-thread-post-box {
+        background: #FFFFFF;
+        border-radius: 12px;
+        padding: 24px;
+        border: 1px solid #E2E8F0;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+    }
+    .web-detail-title {
+        font-size: 1.35rem;
+        font-weight: 800;
+        color: #0F172A;
+        margin: 12px 0 8px;
+    }
+    .web-detail-content {
+        font-size: 0.95rem;
+        color: #334155;
+        line-height: 1.6;
+        white-space: pre-wrap;
+    }
+    .web-comments-stream {
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+    }
+    .web-comments-header {
+        font-size: 0.95rem;
+        font-weight: 700;
+        color: #1E293B;
+        margin-bottom: 4px;
+    }
+    .web-comment-card {
+        background: #FFFFFF;
+        border-radius: 10px;
+        padding: 14px 16px;
+        border: 1px solid #E2E8F0;
+    }
+    .web-comment-author-row {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        margin-bottom: 6px;
+    }
+    .web-comment-content {
+        font-size: 0.9rem;
+        color: #334155;
+        line-height: 1.45;
+        margin-left: 36px;
+    }
+    .web-thread-reply-bar {
+        background: #FFFFFF;
+        border: 1px solid #E2E8F0;
+        border-radius: 12px;
+        padding: 12px 16px;
+        display: flex;
+        gap: 10px;
+    }
+    .web-reply-input {
+        flex: 1;
+        border: 1px solid #CBD5E1;
+        border-radius: 20px;
+        padding: 8px 16px;
+        font-size: 0.9rem;
+        outline: none;
+    }
+    .web-reply-btn {
+        background: #0D9488;
+        color: white;
+        border: none;
+        border-radius: 20px;
+        padding: 8px 18px;
+        font-weight: 700;
+        font-size: 0.88rem;
+        cursor: pointer;
+    }
+    .web-reply-btn:disabled {
+        background: #CBD5E1;
+        cursor: not-allowed;
+    }
+
+    /* Modal Form */
+    .web-forum-new-modal {
+        background: white;
+        border-radius: 14px;
+        width: 100%;
+        max-width: 520px;
+        overflow: hidden;
+        box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+    }
+    .web-forum-modal-header {
+        background: #0D9488;
+        color: white;
+        padding: 14px 20px;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
+    .web-forum-modal-header h3 {
+        margin: 0;
+        font-size: 1.1rem;
+    }
+    .web-forum-modal-body {
+        padding: 20px;
+    }
+    .web-form-label {
+        display: block;
+        font-size: 0.82rem;
+        font-weight: 700;
+        color: #334155;
+        margin-bottom: 4px;
+    }
+    .web-form-select, .web-form-input, .web-form-textarea {
+        width: 100%;
+        padding: 10px 12px;
+        border: 1px solid #CBD5E1;
+        border-radius: 8px;
+        font-size: 0.9rem;
+        outline: none;
+        background: #FFFFFF;
+    }
+    .web-form-textarea {
+        height: 100px;
+        resize: none;
+    }
+</style>
+
+@code {
+    [Parameter] public int? ThreadId { get; set; }
+
+    private readonly string[] categories = { "Semua", "📢 Pengumuman", "💡 Ide & Fitur", "🛠️ Q&A Teknis", "💬 Diskusi Komunitas" };
+    private string activeCategory = "Semua";
+
+    private List<ForumThreadDto> threads = [];
+    private ForumThreadDto? selectedThread;
+    private List<ForumCommentDto> comments = [];
+    private string newCommentText = "";
+
+    // New thread modal state
+    private bool showCreateModal = false;
+    private string newCategory = "💡 Ide & Fitur";
+    private string newTitle = "";
+    private string newContent = "";
+    private string newTags = "";
+
+    protected override void OnInitialized()
+    {
+        LoadThreads();
+        if (ThreadId.HasValue && ThreadId.Value > 0)
+        {
+            var target = threads.FirstOrDefault(t => t.Id == ThreadId.Value);
+            if (target != null) SelectThread(target);
+        }
+        else if (threads.Any())
+        {
+            SelectThread(threads.First());
+        }
+    }
+
+    private void LoadThreads()
+    {
+        threads = ForumService.GetThreads(activeCategory).ToList();
+    }
+
+    private void FilterCategory(string cat)
+    {
+        activeCategory = cat;
+        LoadThreads();
+        if (selectedThread != null && !threads.Any(t => t.Id == selectedThread.Id))
+        {
+            selectedThread = threads.FirstOrDefault();
+            if (selectedThread != null) SelectThread(selectedThread);
+            else comments.Clear();
+        }
+    }
+
+    private void SelectThread(ForumThreadDto t)
+    {
+        selectedThread = t;
+        comments = ForumService.GetComments(t.Id).ToList();
+        newCommentText = "";
+    }
+
+    private void ToggleUpvote(int threadId)
+    {
+        ForumService.ToggleUpvote(threadId);
+        LoadThreads();
+        if (selectedThread != null && selectedThread.Id == threadId)
+        {
+            selectedThread = ForumService.GetThread(threadId);
+        }
+    }
+
+    private void SubmitComment()
+    {
+        if (selectedThread == null || string.IsNullOrWhiteSpace(newCommentText)) return;
+        var author = CurrentUser.UserName ?? "Pengguna Web";
+        ForumService.AddComment(new CreateForumCommentDto(selectedThread.Id, author, newCommentText.Trim()));
+        comments = ForumService.GetComments(selectedThread.Id).ToList();
+        selectedThread = ForumService.GetThread(selectedThread.Id);
+        newCommentText = "";
+        LoadThreads();
+    }
+
+    private void SubmitNewThread()
+    {
+        if (string.IsNullOrWhiteSpace(newTitle) || string.IsNullOrWhiteSpace(newContent)) return;
+        var author = CurrentUser.UserName ?? "Pengguna Web";
+        var created = ForumService.AddThread(new CreateForumThreadDto(newCategory, newTitle.Trim(), newContent.Trim(), newTags.Trim(), author));
+        showCreateModal = false;
+        newTitle = "";
+        newContent = "";
+        newTags = "";
+        LoadThreads();
+        SelectThread(created);
+    }
+
+    private string GetCategoryClass(string category)
+    {
+        if (category.Contains("Pengumuman")) return "web-cat-announcement";
+        if (category.Contains("Ide")) return "web-cat-idea";
+        if (category.Contains("Q&A") || category.Contains("Tanya")) return "web-cat-qa";
+        return "web-cat-general";
+    }
+
+    private string GetInitials(string name)
+    {
+        if (string.IsNullOrWhiteSpace(name)) return "WA";
+        var parts = name.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        if (parts.Length == 1) return parts[0][0].ToString().ToUpper();
+        return $"{parts[0][0]}{parts[1][0]}".ToUpper();
+    }
+
+    private string GetAvatarBg(string name)
+    {
+        string[] colors = { "#00A884", "#128C7E", "#25D366", "#0D9488", "#0284C7", "#7C3AED", "#DB2777" };
+        int hash = Math.Abs(name.GetHashCode());
+        return colors[hash % colors.Length];
+    }
+
+    private string FormatTime(DateTime dt)
+    {
+        var local = dt.ToLocalTime();
+        if (local.Date == DateTime.Now.Date) return local.ToString("HH:mm");
+        if (local.Date == DateTime.Now.Date.AddDays(-1)) return "Kemarin";
+        return local.ToString("dd/MM/yy");
+    }
+}

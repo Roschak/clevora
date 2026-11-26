@@ -1,0 +1,285 @@
+@using Clevora.Application.Interfaces
+@using Clevora.Shared.Models
+@inject IChatService ChatService
+@inject NavigationManager Nav
+@rendermode InteractiveServer
+
+<div class="conv-list">
+    <!-- Search bar -->
+    <div class="conv-search">
+        <input class="conv-search-input" placeholder="Cari percakapan..." @bind="searchQuery" @oninput="OnSearchInput" />
+    </div>
+
+    <!-- Action buttons: New Chat & New Group -->
+    <div class="conv-new" style="display:flex;gap:6px;padding:8px 12px 4px;">
+        <button class="btn-new-chat" style="flex:1;" @onclick="ShowNewChat">
+            <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
+            </svg>
+            Chat Baru
+        </button>
+        <button class="btn-new-chat" style="flex:1;background:#008069;border-color:#008069;color:white;" @onclick="ToggleNewGroup">
+            👥 Grup Baru
+        </button>
+    </div>
+
+    <!-- New group panel -->
+    @if (showNewGroup)
+    {
+        <div class="conv-new-panel" style="background:#F0FDF4;border:1px solid #86EFAC;border-radius:8px;margin:6px 12px;padding:10px;">
+            <div style="font-weight:700;font-size:0.88rem;color:#008069;margin-bottom:6px;">👥 Buat Grup Baru</div>
+            <input class="conv-search-input" style="margin-bottom:6px;" placeholder="Nama Grup (misal: Dev Gravicode)" @bind="newGroupName" />
+            <input class="conv-search-input" placeholder="Cari anggota (nama/email)..." @bind="groupUserQuery" @oninput="OnGroupUserSearch" />
+            
+            @if (groupUserResults.Any())
+            {
+                <ul class="user-search-results" style="max-height:120px;overflow-y:auto;margin:6px 0;padding:0;">
+                    @foreach (var u in groupUserResults)
+                    {
+                        var isSelected = selectedGroupMemberIds.Contains(u.Id);
+                        <li class="user-search-item" style="cursor:pointer;padding:4px;border-radius:4px;background:@(isSelected ? "#DCFCE7" : "transparent")" @onclick="() => ToggleMemberSelection(u.Id)">
+                            <input type="checkbox" checked="@isSelected" style="margin-right:6px;" />
+                            <div class="conv-meta">
+                                <div class="conv-name" style="font-size:0.82rem;">@u.DisplayName</div>
+                                <div class="conv-last-msg" style="font-size:0.75rem;">@u.Email</div>
+                            </div>
+                        </li>
+                    }
+                </ul>
+            }
+
+            @if (selectedGroupMemberIds.Any())
+            {
+                <div style="font-size:0.75rem;color:#008069;margin:4px 0;">
+                    Dipilih: @selectedGroupMemberIds.Count anggota
+                </div>
+            }
+
+            <div style="display:flex;gap:6px;margin-top:8px;">
+                <button class="btn-new-chat" style="flex:1;background:#008069;padding:6px;font-size:0.8rem;" @onclick="CreateGroupAsync" disabled="@(string.IsNullOrWhiteSpace(newGroupName))">
+                    Buat Grup
+                </button>
+                <button class="btn-new-chat" style="flex:0.5;background:#64748B;padding:6px;font-size:0.8rem;" @onclick="ToggleNewGroup">
+                    Batal
+                </button>
+            </div>
+        </div>
+    }
+
+    <!-- New chat search panel -->
+    @if (showNewChat)
+    {
+        <div class="conv-new-panel">
+            <input class="conv-search-input" placeholder="Cari nama / email pengguna..." @bind="userQuery" @oninput="OnUserSearch" />
+            @if (userResults.Any())
+            {
+                <ul class="user-search-results">
+                    @foreach (var u in userResults)
+                    {
+                        <li class="user-search-item" @onclick="() => StartChat(u.Id)">
+                            <div class="conv-avatar">@FirstLetter(u.DisplayName)</div>
+                            <div class="conv-meta">
+                                <div class="conv-name">@u.DisplayName</div>
+                                <div class="conv-last-msg">@u.Email</div>
+                            </div>
+                            @if (u.IsOnline)
+                            {
+                                <span class="online-dot"></span>
+                            }
+                        </li>
+                    }
+                </ul>
+            }
+        </div>
+    }
+
+    <!-- Conversation items -->
+    @if (isLoading)
+    {
+        <div class="conv-loading">Memuat percakapan...</div>
+    }
+    else if (!FilteredConversations.Any())
+    {
+        <div class="conv-empty">
+            <div class="conv-empty-icon">💬</div>
+            <div>Belum ada percakapan.</div>
+            <div class="conv-empty-hint">Mulai chat baru di atas.</div>
+        </div>
+    }
+    else
+    {
+        <div class="conv-items">
+            @foreach (var c in FilteredConversations)
+            {
+                <div class="conv-item @(activeConvId == c.Id ? "conv-item--active" : "")"
+                     @onclick="() => OpenConversation(c.Id)">
+                    <div class="conv-avatar">
+                        @if (c.AvatarUrl != null)
+                        {
+                            <img src="@c.AvatarUrl" alt="@c.Name" />
+                        }
+                        else
+                        {
+                            @FirstLetter(c.Name)
+                        }
+                        @if (c.IsOnline)
+                        {
+                            <span class="online-badge"></span>
+                        }
+                    </div>
+                    <div class="conv-meta">
+                        <div class="conv-row">
+                            <span class="conv-name">@c.Name</span>
+                            @if (c.LastMessageAt.HasValue)
+                            {
+                                <span class="conv-time">@FormatTime(c.LastMessageAt.Value)</span>
+                            }
+                        </div>
+                        <div class="conv-row">
+                            <span class="conv-last-msg">@(c.LastMessage ?? "Belum ada pesan")</span>
+                            @if (c.UnreadCount > 0)
+                            {
+                                <span class="conv-badge">@(c.UnreadCount > 99 ? "99+" : c.UnreadCount.ToString())</span>
+                            }
+                        </div>
+                    </div>
+                </div>
+            }
+        </div>
+    }
+</div>
+
+@code {
+    private List<ConversationSummary> conversations = [];
+    private List<UserSearchResult> userResults = [];
+    private string searchQuery = "";
+    private string userQuery = "";
+    private bool isLoading = true;
+    private bool showNewChat = false;
+    private bool showNewGroup = false;
+    private string newGroupName = "";
+    private string groupUserQuery = "";
+    private List<UserSearchResult> groupUserResults = [];
+    private List<string> selectedGroupMemberIds = [];
+    private int activeConvId = 0;
+
+    private void ToggleNewGroup()
+    {
+        showNewGroup = !showNewGroup;
+        showNewChat = false;
+        newGroupName = "";
+        groupUserQuery = "";
+        groupUserResults = [];
+        selectedGroupMemberIds = [];
+    }
+
+    private async void OnGroupUserSearch(ChangeEventArgs e)
+    {
+        groupUserQuery = e.Value?.ToString() ?? "";
+        if (groupUserQuery.Length < 2) { groupUserResults = []; StateHasChanged(); return; }
+
+        try
+        {
+            groupUserResults = (await ChatService.SearchUsersAsync(groupUserQuery)).ToList();
+        }
+        catch { groupUserResults = []; }
+        StateHasChanged();
+    }
+
+    private void ToggleMemberSelection(string userId)
+    {
+        if (selectedGroupMemberIds.Contains(userId))
+            selectedGroupMemberIds.Remove(userId);
+        else
+            selectedGroupMemberIds.Add(userId);
+    }
+
+    private async Task CreateGroupAsync()
+    {
+        if (string.IsNullOrWhiteSpace(newGroupName)) return;
+
+        try
+        {
+            var conv = await ChatService.CreateGroupAsync(newGroupName.Trim(), selectedGroupMemberIds);
+            showNewGroup = false;
+            await LoadConversations();
+            activeConvId = conv.Id;
+            Nav.NavigateTo($"/chat/{conv.Id}");
+        }
+        catch { }
+    }
+
+    private IEnumerable<ConversationSummary> FilteredConversations =>
+        string.IsNullOrWhiteSpace(searchQuery)
+            ? conversations
+            : conversations.Where(c => c.Name?.Contains(searchQuery, StringComparison.OrdinalIgnoreCase) == true
+                                       || c.LastMessage?.Contains(searchQuery, StringComparison.OrdinalIgnoreCase) == true);
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadConversations();
+    }
+
+    private async Task LoadConversations()
+    {
+        isLoading = true;
+        try { conversations = (await ChatService.GetMyConversationsAsync()).ToList(); }
+        catch { conversations = []; }
+        finally { isLoading = false; }
+    }
+
+    private void OnSearchInput(ChangeEventArgs e)
+    {
+        searchQuery = e.Value?.ToString() ?? "";
+    }
+
+    private void ShowNewChat()
+    {
+        showNewChat = !showNewChat;
+        userQuery = "";
+        userResults = [];
+    }
+
+    private async void OnUserSearch(ChangeEventArgs e)
+    {
+        userQuery = e.Value?.ToString() ?? "";
+        if (userQuery.Length < 2) { userResults = []; StateHasChanged(); return; }
+
+        try
+        {
+            userResults = (await ChatService.SearchUsersAsync(userQuery)).ToList();
+        }
+        catch { userResults = []; }
+        StateHasChanged();
+    }
+
+    private async Task StartChat(string targetUserId)
+    {
+        showNewChat = false;
+        userResults = [];
+        try
+        {
+            var conv = await ChatService.StartPrivateChatAsync(targetUserId);
+            await LoadConversations();
+            Nav.NavigateTo($"/chat/{conv.Id}");
+        }
+        catch { }
+    }
+
+    private void OpenConversation(int id)
+    {
+        activeConvId = id;
+        Nav.NavigateTo($"/chat/{id}");
+    }
+
+    private static string FirstLetter(string? name) =>
+        string.IsNullOrEmpty(name) ? "?" : name[0].ToString().ToUpper();
+
+    private static string FormatTime(DateTime dt)
+    {
+        var now = DateTime.UtcNow;
+        if (dt.Date == now.Date) return dt.ToLocalTime().ToString("HH:mm");
+        if ((now - dt).TotalDays < 7) return dt.ToLocalTime().ToString("ddd");
+        return dt.ToLocalTime().ToString("dd/MM/yy");
+    }
+}

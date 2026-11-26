@@ -99,8 +99,34 @@
 - **Build Android Debug:** ✅ 0 Error (8 warnings — SQLite library lama)
 - **Tests:** 4/4 passed ✅
 - **Keystore:** `keystore/clevora-release.keystore` dibuat untuk Play Store signing
-- **Release APK:** sedang di-build...
-- **Status:** T-08 🔄 IN PROGRESS
+- **Release APK:** Signed APK sukses dikompilasi (`com.gravicode.clevora-Signed.apk`, 26.6 MB)
+- **Status:** T-08 ✅ SELESAI
+
+---
+
+## 2026-11-26 — T-10 & T-11: Rilis APK WhatsApp & Fitur Ekstra Clevora
+- **WhatsApp UI Otentik Lengkap:**
+  - Header hijau WhatsApp (`#008069`) dengan tombol kamera, pencarian, dan menu drop-down.
+  - Tab Bar 4-tab: Komunitas, Chat (dengan badge unread), Status (dengan dot indicator), dan Panggilan.
+  - **Layar Status Stories:** Viewer fullscreen dengan bar durasi 5s otomatis, navigasi tap kiri/kanan, input balas status, serta Status Creator dengan pilihan palet warna (`#075E54`, `#1E40AF`, `#7C3AED`, `#BE185D`, dll).
+  - **Panggilan Suara & Video Interaktif:** Layar panggilan bertema WhatsApp lengkap dengan avatar, timer aktif, tombol speaker/mic/video mute, dan tombol akhiri panggilan.
+  - **Voice Notes (Pesan Suara WhatsApp):** Bubble khusus dengan waveform SVG interaktif, tombol Play/Pause, penghitung durasi real-time, dan perekam suara interaktif dengan tombol batal/kirim.
+  - **Reaksi Emoji Pesan:** Menu mengambang reaksi emoji (👍, ❤️, 😂, 😮, 😢, 🙏) saat mengetuk bubble pesan dengan chip reaksi yang menempel di sudut bubble.
+  - Halaman Kontak Baru (`/new-chat`) dengan opsi Grup Baru, Kontak Baru, Komunitas Baru, dan daftar kontak tim (Kang Fadhil, Iruzzz67, Siti Nurhaliza, Budi Santoso, Ahmad Fauzi, Dewi Lestari).
+- **Fitur Inovatif Tambahan Clevora (Melampaui WhatsApp Biasa):**
+  - **✨ Clevora AI Copilot Sheet di Chat:**
+    1. *Balasan Cerdas (Smart Replies)* yang menganalisis pesan lawan bicara dan memberikan 3 respon cepat satu-klik.
+    2. *Pemoles Gaya Bahasa (AI Tone Polisher)* yang dapat mengubah draf menjadi Formal & Sopan, Santai, Persuasif, atau Bahasa Inggris.
+    3. *Pustaka Template Dinamis* dengan variabel (`{{nama}}`, `{{nominal}}`, `{{jadwal}}`).
+    4. *Ringkasan Pesan Suara AI (Voice Note Audio Summarizer)* untuk merangkum poin inti voice note menjadi bullet points.
+  - **✨ Chat Nomor Baru Tanpa Simpan Kontak:** Langsung membuka obrolan ke nomor WhatsApp mana pun tanpa mengotori buku telepon ponsel.
+- **SQLite Local Offline-First:**
+  - Auto-seeding percakapan realistis dari Kang Fadhil (Gravicode Studios) dan tim dev.
+  - Fitur simulasi balasan interaktif ketika pengguna mengirim pesan ke kontak secara offline.
+- **Pengemasan Release APK:**
+  - File signed APK Android siap instalasi: `src/Clevora.Mobile/bin/Release/net10.0-android/publish/com.gravicode.clevora-Signed.apk` (26.3 MB) ditandatangani dengan keystore `clevora-release.keystore`.
+- **Pengujian Otomatis:**
+  - 48/48 tes lulus 100% tanpa kegagalan di semua 4 proyek pengujian.
 
 ---
 
@@ -118,6 +144,6 @@
 |-------|--------|--------|
 | Clevora.Domain.Tests | 30 | 0 |
 | Clevora.Infrastructure.Tests | 4 | 0 |
-| Clevora.Api.Tests | 4 | 0 |
-| Clevora.Mobile.Tests | 4 | 0 |
-| **Total** | **42** | **0** |
+| Clevora.Api.Tests | 9 | 0 |
+| Clevora.Mobile.Tests | 5 | 0 |
+| **Total** | **48** | **0** |

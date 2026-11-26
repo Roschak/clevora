@@ -17,7 +17,7 @@ public static class DependencyInjection
     {
         var dbPath = configuration["Database:Path"] ?? "/home/data/app.db";
 
-        // Validate mount point (throws if not accessible)
+        // Validate mount point (throws if not accessible on Linux; skipped on Windows dev)
         MountPointValidator.Validate(dbPath);
 
         services.AddDbContext<ClevoraDbContext>(options =>
@@ -25,21 +25,18 @@ public static class DependencyInjection
 
         services.AddIdentityCore<ClevoraUser>(options =>
             {
-                options.Password.RequireDigit = true;
-                options.Password.RequiredLength = 8;
+                options.Password.RequireDigit = false;
+                options.Password.RequiredLength = 6;
                 options.Password.RequireNonAlphanumeric = false;
+                options.Password.RequireUppercase = false;
+                options.SignIn.RequireConfirmedAccount = false;
+                options.SignIn.RequireConfirmedEmail = false;
             })
             .AddRoles<IdentityRole>()
             .AddEntityFrameworkStores<ClevoraDbContext>();
 
         services.AddScoped<JwtTokenService>();
-        services.AddScoped<IComposerService, ComposerService>();
-        services.AddScoped<ICategoryService, CategoryService>();
-        services.AddScoped<ITemplateService, TemplateService>();
-        services.AddScoped<IAiMessageService, AzureAiMessageService>();
-        services.AddScoped<IBlobStorageService, AzureBlobStorageService>();
-        services.AddScoped<IAttachmentService, AttachmentService>();
-        services.AddScoped<ISyncService, SyncService>();
+        services.AddScoped<IChatService, ChatService>();
 
         return services;
     }

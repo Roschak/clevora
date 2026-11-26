@@ -1,0 +1,69 @@
+@using Microsoft.AspNetCore.Components.Authorization
+@inject NavigationManager Nav
+
+<div class="navigation">
+    <!-- Brand logo -->
+    <div class="nav-brand">
+        <div class="nav-brand-icon">C</div>
+    </div>
+
+    <!-- Primary nav tabs -->
+    <nav class="nav-tabs">
+        <NavLink href="/" Match="NavLinkMatch.All" class="nav-tab" title="Chat" ActiveClass="nav-tab--active">
+            <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+            </svg>
+        </NavLink>
+        <NavLink href="/status" class="nav-tab" title="Status (Stories)" ActiveClass="nav-tab--active">
+            <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="12" cy="12" r="10" stroke-dasharray="4 4"/>
+                <circle cx="12" cy="12" r="4"/>
+            </svg>
+        </NavLink>
+        <NavLink href="/forum" class="nav-tab" title="Forum Komunitas" ActiveClass="nav-tab--active">
+            <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M17 6.1H3a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h2.5V21l4-3h7.5a2 2 0 0 0 2-2v-8a2 2 0 0 0-2-2z"/>
+                <path d="M21 3H7a2 2 0 0 0-2 2v1.1h12a2 2 0 0 1 2 2V15h2a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2z"/>
+            </svg>
+        </NavLink>
+    </nav>
+
+    <!-- Bottom: settings/profile/logout -->
+    <div class="nav-bottom">
+        <NavLink href="/settings" class="nav-tab" title="Setelan WhatsApp" ActiveClass="nav-tab--active">
+            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="12" cy="12" r="3"></circle>
+                <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+            </svg>
+        </NavLink>
+        <a href="/Account/Manage" class="nav-tab" title="Profil Akun" @onclick="GoToManage" @onclick:preventDefault="true">
+            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="12" cy="8" r="4"/>
+                <path d="M20 21a8 8 0 1 0-16 0"/>
+            </svg>
+        </a>
+        <a href="/swagger" target="_blank" class="nav-tab" title="Swagger API">
+            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/>
+            </svg>
+        </a>
+        <form action="/Account/Logout" method="post" style="margin:0;padding:0;">
+            <AntiforgeryToken />
+            <input type="hidden" name="ReturnUrl" value="/Account/Login" />
+            <button type="submit" class="nav-tab" title="Keluar / Logout" style="background:transparent;border:none;cursor:pointer;color:#EF4444;display:flex;align-items:center;justify-content:center;">
+                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
+                    <polyline points="16 17 21 12 16 7"></polyline>
+                    <line x1="21" y1="12" x2="9" y2="12"></line>
+                </svg>
+            </button>
+        </form>
+    </div>
+</div>
+
+@code {
+    private void GoToManage()
+    {
+        Nav.NavigateTo("/Account/Manage", forceLoad: true);
+    }
+}
